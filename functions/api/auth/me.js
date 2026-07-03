@@ -1,2 +1,2 @@
-function hasCookie(request){return (request.headers.get('cookie')||'').includes('cq_session=ok')}
-export function onRequestGet({request}){return new Response(JSON.stringify({authenticated:hasCookie(request)}),{headers:{'content-type':'application/json','cache-control':'no-store'}})}
+function session(request,env){let c=request.headers.get('cookie')||'';let expected=encodeURIComponent(env.ADMIN_SESSION_SECRET||env.ADMIN_PASSWORD||'');return !!expected&&c.includes('cq_session='+expected)}
+export function onRequestGet({request,env}){return new Response(JSON.stringify({authenticated:session(request,env)}),{headers:{'content-type':'application/json','cache-control':'no-store'}})}
