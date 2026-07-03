@@ -1,5 +1,7 @@
-// Public enhancements loaded after app.js: Lucide icons, editable ticker text and Meta Pixel browser script.
+// Public enhancements loaded after app.js: latest CSS, Lucide icons, editable ticker text and Meta Pixel browser script.
 (function(){
+  function addCss(href){const l=document.createElement('link');l.rel='stylesheet';l.href=href;document.head.appendChild(l)}
+  addCss('/src/final-fixes.css?v=5');
   const lucideMap = ['sparkles','smile','waves','star','badge-check','check-circle','clipboard-check','route','wand-sparkles','trending-up','check','calendar-days','map-pinned'];
   let cfg=null;
   function loadLucide(){
