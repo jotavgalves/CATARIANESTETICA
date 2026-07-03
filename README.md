@@ -23,4 +23,4 @@ Depois do deploy, acesse `/adm/` para editar o site.
 
 ## Painel
 
-O painel permite editar dados gerais, visual, conteúdo principal, pixels, manutenção e JSON completo. A aba JSON avançado permite criar/remover serviços, depoimentos, FAQ, mudar ordem, imagens, tamanhos e cores.
+O painel permite editar dados gerais, visual, conteúdo principal, pixels, manutenção e JSON completo. A aba JSON avançado permite criar/remover serviços, depoimentos, FAQ, mudar ordem, imagens, tamanhos e cores
