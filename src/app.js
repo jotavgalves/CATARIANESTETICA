@@ -1,3 +1,10 @@
+(function () {
+  var css = document.createElement('link');
+  css.rel = 'stylesheet';
+  css.href = '/src/exact-sections.css?v=1';
+  document.head.appendChild(css);
+})();
+
 document.addEventListener('DOMContentLoaded', function () {
   var menu = document.getElementById('menuBtn');
   var links = document.getElementById('navLinks');
