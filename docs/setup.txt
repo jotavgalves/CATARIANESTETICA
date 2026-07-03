@@ -1,0 +1,7 @@
+Cloudflare Pages setup
+
+Preset: None
+Build command: empty
+Output directory: / or .
+KV binding name: SITE_CONFIG
+Admin path: /adm/
