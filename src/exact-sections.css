@@ -1,4 +1,4 @@
-/* Targeted visual correction for the three approved screenshots: hero, procedures and testimonials. */
+/* Targeted visual correction for the approved sections plus motion/interactions. */
 
 /* HERO */
 .hero.section-light {
@@ -34,13 +34,8 @@
   max-width: 590px;
   margin-top: 38px;
   color: #7b625b;
-  font-size: 0;
-  line-height: 1.55;
-}
-.hero-copy > p:not(.eyebrow)::after {
-  content: "Protocolos personalizados, tecnologia avançada\A e um olhar estético apurado para realçar o que\A há de melhor em você, com naturalidade e segurança.";
-  white-space: pre-line;
   font-size: 22px;
+  line-height: 1.55;
 }
 .hero-photo {
   min-height: min(68vh, 680px);
@@ -49,6 +44,12 @@
   background: linear-gradient(145deg, #fff9f5 0%, #f0dfd6 100%);
   box-shadow: 0 38px 100px rgba(2, 17, 31, 0.08);
   border-color: rgba(185, 133, 120, 0.26);
+}
+.hero-photo img,
+.about-photo img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
 }
 .hero-photo .photo-placeholder span {
   font-size: 26px;
@@ -60,6 +61,31 @@
 }
 .hero .actions {
   display: none;
+}
+
+/* INFINITE TICKER */
+.ticker {
+  overflow: hidden;
+  position: relative;
+}
+.ticker-track {
+  display: flex;
+  align-items: center;
+  width: max-content;
+  gap: 34px;
+  white-space: nowrap;
+  will-change: transform;
+  animation: tickerLoop var(--ticker-speed, 34s) linear infinite;
+}
+.ticker-track span {
+  flex: 0 0 auto;
+}
+.ticker:hover .ticker-track {
+  animation-play-state: paused;
+}
+@keyframes tickerLoop {
+  from { transform: translate3d(0, 0, 0); }
+  to { transform: translate3d(-50%, 0, 0); }
 }
 
 /* PROCEDURES */
@@ -101,28 +127,39 @@
 .procedure-track {
   width: min(100%, 1120px);
   margin: 0 auto;
-  padding: 0;
-  display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
+  padding: 0 4px 14px;
+  display: flex;
   gap: 28px;
-  overflow: visible;
-  scroll-snap-type: none;
+  overflow-x: auto;
+  overflow-y: visible;
+  scroll-snap-type: x mandatory;
+  scroll-behavior: smooth;
+  scrollbar-width: none;
+}
+.procedure-track::-webkit-scrollbar {
+  display: none;
 }
 .procedure-card {
-  flex: none;
-  min-width: 0;
+  flex: 0 0 262px;
+  min-width: 262px;
+  scroll-snap-align: center;
   opacity: 1;
   transform: none !important;
   border-radius: 24px;
   background: rgba(255, 255, 255, 0.08);
   box-shadow: 0 28px 90px rgba(0, 0, 0, 0.26);
+  transition: transform .28s ease, opacity .28s ease, border-color .28s ease, box-shadow .28s ease, background .28s ease;
 }
 .procedure-card.dim {
   opacity: 0.72;
 }
-.procedure-card.active {
+.procedure-card.active,
+.procedure-card:hover {
   opacity: 1;
   background: rgba(255, 255, 255, 0.10);
+  transform: translateY(-10px) !important;
+  border-color: rgba(201, 168, 106, 0.48);
+  box-shadow: 0 40px 110px rgba(0, 0, 0, 0.34);
 }
 .procedure-image {
   height: 170px;
@@ -160,8 +197,14 @@
   transform: translateY(-50%);
   width: 56px;
   height: 56px;
-  background: transparent;
+  background: rgba(2, 17, 31, .72);
   border-color: rgba(201, 168, 106, .55);
+  transition: transform .25s ease, background .25s ease, border-color .25s ease;
+}
+.carousel-arrow:hover {
+  transform: translateY(-50%) scale(1.08);
+  background: rgba(201, 168, 106, .12);
+  border-color: rgba(201, 168, 106, .95);
 }
 .carousel-arrow.prev {
   left: 0;
@@ -170,7 +213,8 @@
   right: 0;
 }
 .carousel-meta {
-  display: none;
+  display: flex;
+  margin-top: 22px;
 }
 
 /* TESTIMONIALS */
@@ -192,14 +236,9 @@
 .testimonials .section-subtitle {
   margin-top: 26px;
   max-width: 720px;
-  font-size: 0;
-  color: #536176;
-}
-.testimonials .section-subtitle::after {
-  content: "Histórias reais de pacientes que confiaram em nosso cuidado\A e transformaram sua autoestima.";
-  white-space: pre-line;
   font-size: 22px;
   line-height: 1.65;
+  color: #536176;
 }
 .testimonial-track {
   width: min(100% - 72px, 1360px);
@@ -218,6 +257,12 @@
   box-shadow: 0 24px 70px rgba(2, 17, 31, 0.08);
   display: flex;
   flex-direction: column;
+  transition: transform .28s ease, box-shadow .28s ease, border-color .28s ease;
+}
+.testimonial-card:hover {
+  transform: translateY(-8px);
+  box-shadow: 0 34px 90px rgba(2, 17, 31, 0.13);
+  border-color: rgba(185, 133, 120, .34);
 }
 .testimonial-card div {
   font-size: 16px;
@@ -238,18 +283,48 @@
   margin-top: 4px;
 }
 
+/* GENERAL INTERACTIONS */
+.btn,
+.nav-cta,
+.whatsapp-float,
+.soft-card,
+.logo {
+  transition: transform .25s ease, box-shadow .25s ease, border-color .25s ease, filter .25s ease, background .25s ease;
+}
+.btn:hover,
+.nav-cta:hover {
+  transform: translateY(-3px);
+  filter: brightness(1.06);
+  box-shadow: 0 26px 60px rgba(185, 133, 120, .34);
+}
+.soft-card:hover {
+  transform: translateY(-8px);
+  box-shadow: 0 36px 90px rgba(2, 17, 31, .14);
+  border-color: rgba(185, 133, 120, .34);
+}
+.logo:hover,
+.whatsapp-float:hover {
+  transform: translateY(-2px) scale(1.04);
+}
+.nav-links a {
+  transition: color .22s ease, border-color .22s ease, opacity .22s ease;
+}
+
 @media (max-width: 1180px) {
-  .procedure-track { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .procedure-track { width: min(100%, 860px); }
   .testimonial-track { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-  .carousel-arrow { display: none; }
 }
 @media (max-width: 980px) {
   .hero-grid { grid-template-columns: 1fr; }
   .hero-copy .eyebrow { margin-bottom: 32px; }
   .hero-photo { min-height: 420px; }
+  .procedure-copy h2 { text-align: center; margin-inline: auto; }
+  .procedure-copy, .procedure-copy .lead { text-align: center; margin-inline: auto; }
+  .carousel-arrow { display: none; }
 }
 @media (max-width: 640px) {
   .hero .container, .procedures .procedure-layout, .procedure-carousel, .testimonial-track { width: min(100% - 28px, 1360px); }
-  .procedure-track, .testimonial-track { grid-template-columns: 1fr; }
+  .testimonial-track { grid-template-columns: 1fr; }
+  .procedure-card { flex-basis: 86vw; min-width: 86vw; }
   .hero-copy h1, .procedure-copy h2, .testimonials h2 { font-size: clamp(42px, 13vw, 64px) !important; }
 }
