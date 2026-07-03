@@ -1,21 +1,30 @@
 (function () {
-  var css = document.createElement('link');
-  css.rel = 'stylesheet';
-  css.href = '/src/exact-sections.css?v=2';
-  document.head.appendChild(css);
+  function loadCss(href) {
+    var css = document.createElement('link');
+    css.rel = 'stylesheet';
+    css.href = href;
+    document.head.appendChild(css);
+  }
+  loadCss('/src/exact-sections.css?v=3');
+  loadCss('/src/procedure-interactions.css?v=1');
 })();
 
 document.addEventListener('DOMContentLoaded', function () {
   var siteConfig = null;
+  var autoTimer = null;
+  var autoResumeTimer = null;
+  var dragState = null;
+  var modalData = [];
+
   var menu = document.getElementById('menuBtn');
   var links = document.getElementById('navLinks');
   if (menu && links) menu.onclick = function () { links.classList.toggle('open'); };
 
   normalizeStaticCopy();
   bindFaq();
-  bindCarouselButtons();
   initTicker();
   initReveal();
+  setupProcedureCarousel();
   loadConfig();
 
   function safe(value) {
@@ -33,13 +42,9 @@ document.addEventListener('DOMContentLoaded', function () {
 
   function normalizeStaticCopy() {
     var heroParagraph = document.querySelector('.hero-copy > p:not(.eyebrow)');
-    if (heroParagraph) {
-      heroParagraph.textContent = 'Protocolos personalizados, tecnologia avançada e um olhar estético apurado para realçar o que há de melhor em você, com naturalidade e segurança.';
-    }
+    if (heroParagraph) heroParagraph.textContent = 'Protocolos personalizados, tecnologia avançada e um olhar estético apurado para realçar o que há de melhor em você, com naturalidade e segurança.';
     var testimonialSubtitle = document.querySelector('.testimonials .section-subtitle');
-    if (testimonialSubtitle) {
-      testimonialSubtitle.textContent = 'Histórias reais de pacientes que confiaram em nosso cuidado e transformaram sua autoestima.';
-    }
+    if (testimonialSubtitle) testimonialSubtitle.textContent = 'Histórias reais de pacientes que confiaram em nosso cuidado e transformaram sua autoestima.';
   }
 
   function initTicker(items) {
@@ -48,10 +53,9 @@ document.addEventListener('DOMContentLoaded', function () {
     var labels = items && items.length ? items : Array.from(track.querySelectorAll('span')).map(function (span) { return span.textContent.trim(); });
     labels = labels.filter(Boolean);
     if (!labels.length) labels = ['Limpeza de pele', 'Drenagem facial', 'Drenagem HD', 'Peeling químico', 'Botox', 'Endolaser'];
-    var repeated = labels.concat(labels);
-    track.innerHTML = repeated.map(function (label) { return '<span>' + safe(label) + '</span>'; }).join('');
-    var speed = Math.max(24, labels.length * 4);
-    track.style.setProperty('--ticker-speed', speed + 's');
+    var loops = labels.concat(labels, labels, labels);
+    track.innerHTML = loops.map(function (label) { return '<span>' + safe(label) + '</span>'; }).join('');
+    track.style.setProperty('--ticker-speed', Math.max(26, labels.length * 4) + 's');
   }
 
   function bindFaq() {
@@ -66,18 +70,6 @@ document.addEventListener('DOMContentLoaded', function () {
     });
   }
 
-  function bindCarouselButtons() {
-    document.querySelectorAll('[data-target]').forEach(function (button) {
-      button.onclick = function () {
-        var target = document.getElementById(button.getAttribute('data-target'));
-        var dir = Number(button.getAttribute('data-dir') || 1);
-        var card = target ? target.querySelector('.procedure-card') : null;
-        var move = card ? card.getBoundingClientRect().width + 28 : 395;
-        if (target) target.scrollBy({ left: dir * move, behavior: 'smooth' });
-      };
-    });
-  }
-
   function initReveal() {
     var observer = new IntersectionObserver(function (entries) {
       entries.forEach(function (entry) {
@@ -85,6 +77,149 @@ document.addEventListener('DOMContentLoaded', function () {
       });
     }, { threshold: 0.14 });
     document.querySelectorAll('.reveal').forEach(function (el) { observer.observe(el); });
+  }
+
+  function setupProcedureCarousel() {
+    var track = document.getElementById('proceduresTrack');
+    if (!track) return;
+    stopAutoplay();
+    bindCarouselButtons();
+    bindDrag(track);
+    bindProcedureCards();
+    startAutoplay();
+  }
+
+  function bindCarouselButtons() {
+    document.querySelectorAll('[data-target]').forEach(function (button) {
+      button.onclick = function () {
+        var target = document.getElementById(button.getAttribute('data-target'));
+        var dir = Number(button.getAttribute('data-dir') || 1);
+        moveProcedureCarousel(dir, true);
+      };
+    });
+  }
+
+  function getMoveSize(track) {
+    var card = track ? track.querySelector('.procedure-card') : null;
+    if (!card) return 320;
+    return card.getBoundingClientRect().width + 28;
+  }
+
+  function moveProcedureCarousel(dir, pause) {
+    var track = document.getElementById('proceduresTrack');
+    if (!track) return;
+    if (pause) pauseAutoplayTemporarily();
+    var max = track.scrollWidth - track.clientWidth;
+    var move = getMoveSize(track);
+    var next = track.scrollLeft + dir * move;
+    if (next >= max - 4) next = 0;
+    if (next < 0) next = max;
+    track.scrollTo({ left: next, behavior: 'smooth' });
+  }
+
+  function startAutoplay() {
+    var track = document.getElementById('proceduresTrack');
+    if (!track) return;
+    stopAutoplay();
+    autoTimer = setInterval(function () {
+      if (track.matches(':hover') || document.body.classList.contains('modal-open') || track.classList.contains('is-paused')) return;
+      moveProcedureCarousel(1, false);
+    }, 2600);
+  }
+
+  function stopAutoplay() {
+    if (autoTimer) clearInterval(autoTimer);
+    autoTimer = null;
+  }
+
+  function pauseAutoplayTemporarily() {
+    var track = document.getElementById('proceduresTrack');
+    if (!track) return;
+    track.classList.add('is-paused');
+    clearTimeout(autoResumeTimer);
+    autoResumeTimer = setTimeout(function () { track.classList.remove('is-paused'); }, 5500);
+  }
+
+  function bindDrag(track) {
+    track.onpointerdown = function (event) {
+      if (event.target.closest('a, button')) return;
+      dragState = { x: event.clientX, left: track.scrollLeft, moved: false };
+      track.classList.add('is-dragging', 'is-paused');
+      track.setPointerCapture(event.pointerId);
+    };
+    track.onpointermove = function (event) {
+      if (!dragState) return;
+      var delta = event.clientX - dragState.x;
+      if (Math.abs(delta) > 4) dragState.moved = true;
+      track.scrollLeft = dragState.left - delta;
+    };
+    track.onpointerup = track.onpointercancel = function () {
+      if (!dragState) return;
+      setTimeout(function () { if (dragState) dragState = null; }, 0);
+      track.classList.remove('is-dragging');
+      pauseAutoplayTemporarily();
+    };
+  }
+
+  function bindProcedureCards() {
+    modalData = Array.from(document.querySelectorAll('.procedure-card')).map(function (card) {
+      return cardToData(card);
+    });
+    document.querySelectorAll('.procedure-card').forEach(function (card, index) {
+      card.onclick = function (event) {
+        if (event.target.closest('a, button')) return;
+        if (dragState && dragState.moved) return;
+        openProcedureModal(cardToData(card) || modalData[index]);
+      };
+    });
+  }
+
+  function cardToData(card) {
+    if (!card) return null;
+    var image = card.querySelector('.procedure-image img');
+    var mediaText = card.querySelector('.procedure-image');
+    var label = card.querySelector('.procedure-body > span');
+    var title = card.querySelector('.procedure-body h3');
+    var text = card.querySelector('.procedure-body p');
+    var tags = Array.from(card.querySelectorAll('.tags b')).map(function (tag) { return tag.textContent.trim(); });
+    return {
+      label: label ? label.textContent.trim() : 'Procedimento',
+      title: title ? title.textContent.trim() : mediaText ? mediaText.childNodes[0].textContent.trim() : 'Procedimento',
+      text: text ? text.textContent.trim() : '',
+      tags: tags,
+      image: image ? image.getAttribute('src') : ''
+    };
+  }
+
+  function openProcedureModal(data) {
+    if (!data) return;
+    pauseAutoplayTemporarily();
+    var old = document.querySelector('.proc-modal');
+    if (old) old.remove();
+    var modal = document.createElement('div');
+    modal.className = 'proc-modal is-open';
+    modal.innerHTML = '<div class="proc-modal__backdrop" data-close="1"></div>' +
+      '<div class="proc-modal__dialog" role="dialog" aria-modal="true">' +
+      '<button class="proc-modal__close" type="button" data-close="1">×</button>' +
+      '<div class="proc-modal__media">' + (data.image ? '<img src="' + safe(data.image) + '" alt="' + safe(data.title) + '">' : safe(data.title)) + '</div>' +
+      '<div class="proc-modal__content"><span>' + safe(data.label) + '</span><h3>' + safe(data.title) + '</h3><p>' + safe(data.text) + '</p>' +
+      '<div class="proc-modal__tags">' + data.tags.map(function (tag) { return '<b>' + safe(tag) + '</b>'; }).join('') + '</div>' +
+      '<a class="btn btn-gold" href="' + getWhatsAppUrl('Tenho interesse em ' + data.title + '.') + '">Tenho interesse →</a></div></div>';
+    document.body.appendChild(modal);
+    document.body.classList.add('modal-open');
+    modal.querySelectorAll('[data-close]').forEach(function (close) {
+      close.onclick = function () { closeProcedureModal(modal); };
+    });
+    document.onkeydown = function (event) {
+      if (event.key === 'Escape') closeProcedureModal(modal);
+    };
+  }
+
+  function closeProcedureModal(modal) {
+    if (modal) modal.remove();
+    document.body.classList.remove('modal-open');
+    document.onkeydown = null;
+    pauseAutoplayTemporarily();
   }
 
   function loadConfig() {
@@ -130,9 +265,7 @@ document.addEventListener('DOMContentLoaded', function () {
     if (kicker && hero.kicker) kicker.textContent = hero.kicker;
     if (title && hero.title) title.textContent = hero.title;
     if (subtitle && hero.subtitle) subtitle.textContent = hero.subtitle;
-    if (photo && hero.image && hero.image.url) {
-      photo.innerHTML = '<img src="' + safe(hero.image.url) + '" alt="' + safe(hero.image.alt || hero.title || 'Foto principal') + '">';
-    }
+    if (photo && hero.image && hero.image.url) photo.innerHTML = '<img src="' + safe(hero.image.url) + '" alt="' + safe(hero.image.alt || hero.title || 'Foto principal') + '">';
   }
 
   function updateProcedures(config) {
@@ -158,6 +291,7 @@ document.addEventListener('DOMContentLoaded', function () {
         '<div class="tags">' + tags.slice(0, 3).map(function (tag) { return '<b>' + safe(tag) + '</b>'; }).join('') + '</div>' +
         '<a class="btn btn-gold" href="' + getWhatsAppUrl('Tenho interesse em ' + titleText + '.') + '">Tenho interesse →</a></div></article>';
     }).join('');
+    setupProcedureCarousel();
   }
 
   function updateTestimonials(config) {
