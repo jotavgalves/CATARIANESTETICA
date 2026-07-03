@@ -5,27 +5,13 @@
     css.href = href;
     document.head.appendChild(css);
   }
-  loadCss('/src/exact-sections.css?v=3');
-  loadCss('/src/procedure-interactions.css?v=1');
+  loadCss('/src/exact-sections.css?v=4');
+  loadCss('/src/final-fixes.css?v=3');
 })();
 
 document.addEventListener('DOMContentLoaded', function () {
   var siteConfig = null;
-  var autoTimer = null;
-  var autoResumeTimer = null;
-  var dragState = null;
-  var modalData = [];
-
-  var menu = document.getElementById('menuBtn');
-  var links = document.getElementById('navLinks');
-  if (menu && links) menu.onclick = function () { links.classList.toggle('open'); };
-
-  normalizeStaticCopy();
-  bindFaq();
-  initTicker();
-  initReveal();
-  setupProcedureCarousel();
-  loadConfig();
+  var carousel = null;
 
   function safe(value) {
     return String(value == null ? '' : value).replace(/[&<>"']/g, function (char) {
@@ -40,11 +26,41 @@ document.addEventListener('DOMContentLoaded', function () {
     return 'https://wa.me/' + number + '?text=' + message;
   }
 
+  normalizeStaticCopy();
+  bindMenu();
+  bindFaq();
+  initTicker();
+  initReveal();
+  fixWhatsapp();
+  initProcedureCarousel();
+  loadConfig();
+
+  function bindMenu() {
+    var menu = document.getElementById('menuBtn');
+    var links = document.getElementById('navLinks');
+    if (menu && links) menu.onclick = function () { links.classList.toggle('open'); };
+  }
+
   function normalizeStaticCopy() {
     var heroParagraph = document.querySelector('.hero-copy > p:not(.eyebrow)');
-    if (heroParagraph) heroParagraph.textContent = 'Protocolos personalizados, tecnologia avançada e um olhar estético apurado para realçar o que há de melhor em você, com naturalidade e segurança.';
+    if (heroParagraph) {
+      heroParagraph.textContent = 'Protocolos personalizados, tecnologia avançada e um olhar estético apurado para realçar o que há de melhor em você, com naturalidade e segurança.';
+    }
     var testimonialSubtitle = document.querySelector('.testimonials .section-subtitle');
-    if (testimonialSubtitle) testimonialSubtitle.textContent = 'Histórias reais de pacientes que confiaram em nosso cuidado e transformaram sua autoestima.';
+    if (testimonialSubtitle) {
+      testimonialSubtitle.textContent = 'Histórias reais de pacientes que confiaram em nosso cuidado e transformaram sua autoestima.';
+    }
+  }
+
+  function fixWhatsapp() {
+    document.querySelectorAll('.whatsapp-float').forEach(function (el) {
+      el.style.position = 'fixed';
+      el.style.right = '24px';
+      el.style.left = 'auto';
+      el.style.bottom = '24px';
+      el.style.top = 'auto';
+      el.style.zIndex = '99999';
+    });
   }
 
   function initTicker(items) {
@@ -79,128 +95,202 @@ document.addEventListener('DOMContentLoaded', function () {
     document.querySelectorAll('.reveal').forEach(function (el) { observer.observe(el); });
   }
 
-  function setupProcedureCarousel() {
+  function initProcedureCarousel() {
     var track = document.getElementById('proceduresTrack');
     if (!track) return;
-    stopAutoplay();
-    bindCarouselButtons();
-    bindDrag(track);
-    bindProcedureCards();
-    startAutoplay();
+    if (carousel && carousel.destroy) carousel.destroy();
+    carousel = createProcedureCarousel(track);
+    carousel.init();
   }
 
-  function bindCarouselButtons() {
-    document.querySelectorAll('[data-target]').forEach(function (button) {
-      button.onclick = function () {
-        var target = document.getElementById(button.getAttribute('data-target'));
-        var dir = Number(button.getAttribute('data-dir') || 1);
-        moveProcedureCarousel(dir, true);
-      };
-    });
-  }
-
-  function getMoveSize(track) {
-    var card = track ? track.querySelector('.procedure-card') : null;
-    if (!card) return 320;
-    return card.getBoundingClientRect().width + 28;
-  }
-
-  function moveProcedureCarousel(dir, pause) {
-    var track = document.getElementById('proceduresTrack');
-    if (!track) return;
-    if (pause) pauseAutoplayTemporarily();
-    var max = track.scrollWidth - track.clientWidth;
-    var move = getMoveSize(track);
-    var next = track.scrollLeft + dir * move;
-    if (next >= max - 4) next = 0;
-    if (next < 0) next = max;
-    track.scrollTo({ left: next, behavior: 'smooth' });
-  }
-
-  function startAutoplay() {
-    var track = document.getElementById('proceduresTrack');
-    if (!track) return;
-    stopAutoplay();
-    autoTimer = setInterval(function () {
-      if (track.matches(':hover') || document.body.classList.contains('modal-open') || track.classList.contains('is-paused')) return;
-      moveProcedureCarousel(1, false);
-    }, 2600);
-  }
-
-  function stopAutoplay() {
-    if (autoTimer) clearInterval(autoTimer);
-    autoTimer = null;
-  }
-
-  function pauseAutoplayTemporarily() {
-    var track = document.getElementById('proceduresTrack');
-    if (!track) return;
-    track.classList.add('is-paused');
-    clearTimeout(autoResumeTimer);
-    autoResumeTimer = setTimeout(function () { track.classList.remove('is-paused'); }, 5500);
-  }
-
-  function bindDrag(track) {
-    track.onpointerdown = function (event) {
-      if (event.target.closest('a, button')) return;
-      dragState = { x: event.clientX, left: track.scrollLeft, moved: false };
-      track.classList.add('is-dragging', 'is-paused');
-      track.setPointerCapture(event.pointerId);
+  function createProcedureCarousel(track) {
+    var state = {
+      index: Math.min(1, Math.max(0, track.querySelectorAll('.procedure-card').length - 1)),
+      timer: null,
+      pausedUntil: 0,
+      startX: 0,
+      startOffset: 0,
+      moved: false,
+      dragging: false,
+      offset: 0,
+      listeners: []
     };
-    track.onpointermove = function (event) {
-      if (!dragState) return;
-      var delta = event.clientX - dragState.x;
-      if (Math.abs(delta) > 4) dragState.moved = true;
-      track.scrollLeft = dragState.left - delta;
-    };
-    track.onpointerup = track.onpointercancel = function () {
-      if (!dragState) return;
-      setTimeout(function () { if (dragState) dragState = null; }, 0);
-      track.classList.remove('is-dragging');
-      pauseAutoplayTemporarily();
-    };
-  }
 
-  function bindProcedureCards() {
-    modalData = Array.from(document.querySelectorAll('.procedure-card')).map(function (card) {
-      return cardToData(card);
-    });
-    document.querySelectorAll('.procedure-card').forEach(function (card, index) {
-      card.onclick = function (event) {
+    function cards() {
+      return Array.from(track.querySelectorAll('.procedure-card'));
+    }
+
+    function viewport() {
+      return track.parentElement || track;
+    }
+
+    function desiredOffset(index) {
+      var list = cards();
+      if (!list.length) return 0;
+      if (index >= list.length) index = 0;
+      if (index < 0) index = list.length - 1;
+      var card = list[index];
+      var center = card.offsetLeft + card.offsetWidth / 2;
+      return viewport().clientWidth / 2 - center;
+    }
+
+    function applyOffset(offset, animated) {
+      state.offset = offset;
+      track.style.transition = animated ? 'transform .62s cubic-bezier(.22,1,.36,1)' : 'none';
+      track.style.transform = 'translate3d(' + offset + 'px,0,0)';
+    }
+
+    function setIndex(index, animated) {
+      var list = cards();
+      if (!list.length) return;
+      if (index >= list.length) index = 0;
+      if (index < 0) index = list.length - 1;
+      state.index = index;
+      applyOffset(desiredOffset(index), animated !== false);
+      updateActive();
+    }
+
+    function updateActive() {
+      var list = cards();
+      list.forEach(function (card, i) {
+        var near = Math.abs(i - state.index) === 1 || Math.abs(i - state.index) === list.length - 1;
+        card.classList.toggle('is-active', i === state.index);
+        card.classList.toggle('is-near', near && i !== state.index);
+        card.classList.toggle('dim', !near && i !== state.index);
+      });
+      var progress = document.querySelector('.carousel-meta .progress i') || document.querySelector('.progress i');
+      var counter = document.querySelector('.carousel-meta span:first-child');
+      var pct = list.length <= 1 ? 100 : ((state.index + 1) / list.length) * 100;
+      if (progress) progress.style.width = pct + '%';
+      if (counter) counter.textContent = String(state.index + 1).padStart(2, '0') + ' / ' + String(list.length).padStart(2, '0');
+    }
+
+    function move(dir, manual) {
+      if (manual) pause(4800);
+      setIndex(state.index + dir, true);
+    }
+
+    function pause(ms) {
+      state.pausedUntil = Date.now() + (ms || 4500);
+    }
+
+    function autoplay() {
+      clearInterval(state.timer);
+      state.timer = setInterval(function () {
+        if (Date.now() < state.pausedUntil) return;
+        if (document.body.classList.contains('modal-open')) return;
+        if (viewport().matches(':hover')) return;
+        move(1, false);
+      }, 3000);
+    }
+
+    function add(el, type, fn, opts) {
+      el.addEventListener(type, fn, opts);
+      state.listeners.push([el, type, fn, opts]);
+    }
+
+    function bind() {
+      add(window, 'resize', function () { setIndex(state.index, false); });
+      document.querySelectorAll('[data-target="proceduresTrack"]').forEach(function (btn) {
+        add(btn, 'click', function (event) {
+          event.preventDefault();
+          event.stopPropagation();
+          move(Number(btn.getAttribute('data-dir') || 1), true);
+        });
+      });
+
+      add(track, 'pointerdown', function (event) {
         if (event.target.closest('a, button')) return;
-        if (dragState && dragState.moved) return;
-        openProcedureModal(cardToData(card) || modalData[index]);
-      };
-    });
+        state.dragging = true;
+        state.moved = false;
+        state.startX = event.clientX;
+        state.startOffset = state.offset;
+        pause(6000);
+        track.classList.add('is-dragging');
+        try { track.setPointerCapture(event.pointerId); } catch (_) {}
+      }, true);
+
+      add(track, 'pointermove', function (event) {
+        if (!state.dragging) return;
+        var dx = event.clientX - state.startX;
+        if (Math.abs(dx) > 5) state.moved = true;
+        applyOffset(state.startOffset + dx, false);
+      }, true);
+
+      add(track, 'pointerup', function (event) {
+        if (!state.dragging) return;
+        var dx = event.clientX - state.startX;
+        state.dragging = false;
+        track.classList.remove('is-dragging');
+        if (dx < -46) setIndex(state.index + 1, true);
+        else if (dx > 46) setIndex(state.index - 1, true);
+        else setIndex(state.index, true);
+        pause(4800);
+      }, true);
+
+      add(track, 'pointercancel', function () {
+        state.dragging = false;
+        track.classList.remove('is-dragging');
+        setIndex(state.index, true);
+      }, true);
+
+      add(track, 'click', function (event) {
+        var card = event.target.closest('.procedure-card');
+        if (!card || event.target.closest('a, button')) return;
+        event.preventDefault();
+        event.stopPropagation();
+        if (event.stopImmediatePropagation) event.stopImmediatePropagation();
+        if (state.moved) { state.moved = false; return; }
+        var index = cards().indexOf(card);
+        if (index !== state.index) {
+          setIndex(index, true);
+          pause(3500);
+          return;
+        }
+        openProcedureModal(cardToData(card));
+      }, true);
+    }
+
+    return {
+      init: function () {
+        track.style.overflow = 'visible';
+        track.style.willChange = 'transform';
+        bind();
+        setTimeout(function () { setIndex(state.index, false); }, 80);
+        autoplay();
+      },
+      destroy: function () {
+        clearInterval(state.timer);
+        state.listeners.forEach(function (row) { row[0].removeEventListener(row[1], row[2], row[3]); });
+        state.listeners = [];
+      },
+      goTo: setIndex
+    };
   }
 
   function cardToData(card) {
-    if (!card) return null;
-    var image = card.querySelector('.procedure-image img');
-    var mediaText = card.querySelector('.procedure-image');
+    var img = card.querySelector('.procedure-image img');
     var label = card.querySelector('.procedure-body > span');
     var title = card.querySelector('.procedure-body h3');
     var text = card.querySelector('.procedure-body p');
-    var tags = Array.from(card.querySelectorAll('.tags b')).map(function (tag) { return tag.textContent.trim(); });
+    var tags = Array.from(card.querySelectorAll('.tags b')).map(function (x) { return x.textContent.trim(); });
     return {
-      label: label ? label.textContent.trim() : 'Procedimento',
-      title: title ? title.textContent.trim() : mediaText ? mediaText.childNodes[0].textContent.trim() : 'Procedimento',
-      text: text ? text.textContent.trim() : '',
-      tags: tags,
-      image: image ? image.getAttribute('src') : ''
+      image: img && img.src || '',
+      label: label && label.textContent.trim() || 'Procedimento',
+      title: title && title.textContent.trim() || 'Procedimento',
+      text: text && text.textContent.trim() || '',
+      tags: tags
     };
   }
 
   function openProcedureModal(data) {
     if (!data) return;
-    pauseAutoplayTemporarily();
-    var old = document.querySelector('.proc-modal');
-    if (old) old.remove();
+    document.querySelectorAll('.proc-modal').forEach(function (modal) { modal.remove(); });
     var modal = document.createElement('div');
     modal.className = 'proc-modal is-open';
     modal.innerHTML = '<div class="proc-modal__backdrop" data-close="1"></div>' +
       '<div class="proc-modal__dialog" role="dialog" aria-modal="true">' +
-      '<button class="proc-modal__close" type="button" data-close="1">×</button>' +
+      '<button class="proc-modal__close" data-close="1" type="button">×</button>' +
       '<div class="proc-modal__media">' + (data.image ? '<img src="' + safe(data.image) + '" alt="' + safe(data.title) + '">' : safe(data.title)) + '</div>' +
       '<div class="proc-modal__content"><span>' + safe(data.label) + '</span><h3>' + safe(data.title) + '</h3><p>' + safe(data.text) + '</p>' +
       '<div class="proc-modal__tags">' + data.tags.map(function (tag) { return '<b>' + safe(tag) + '</b>'; }).join('') + '</div>' +
@@ -208,18 +298,11 @@ document.addEventListener('DOMContentLoaded', function () {
     document.body.appendChild(modal);
     document.body.classList.add('modal-open');
     modal.querySelectorAll('[data-close]').forEach(function (close) {
-      close.onclick = function () { closeProcedureModal(modal); };
+      close.onclick = function () {
+        modal.remove();
+        document.body.classList.remove('modal-open');
+      };
     });
-    document.onkeydown = function (event) {
-      if (event.key === 'Escape') closeProcedureModal(modal);
-    };
-  }
-
-  function closeProcedureModal(modal) {
-    if (modal) modal.remove();
-    document.body.classList.remove('modal-open');
-    document.onkeydown = null;
-    pauseAutoplayTemporarily();
   }
 
   function loadConfig() {
@@ -241,6 +324,7 @@ document.addEventListener('DOMContentLoaded', function () {
     updateFaq(config);
     updateAbout(config);
     updateContact(config);
+    fixWhatsapp();
   }
 
   function updateGlobalLinks(config) {
@@ -265,7 +349,9 @@ document.addEventListener('DOMContentLoaded', function () {
     if (kicker && hero.kicker) kicker.textContent = hero.kicker;
     if (title && hero.title) title.textContent = hero.title;
     if (subtitle && hero.subtitle) subtitle.textContent = hero.subtitle;
-    if (photo && hero.image && hero.image.url) photo.innerHTML = '<img src="' + safe(hero.image.url) + '" alt="' + safe(hero.image.alt || hero.title || 'Foto principal') + '">';
+    if (photo && hero.image && hero.image.url) {
+      photo.innerHTML = '<img src="' + safe(hero.image.url) + '" alt="' + safe(hero.image.alt || hero.title || 'Foto principal') + '">';
+    }
   }
 
   function updateProcedures(config) {
@@ -285,13 +371,23 @@ document.addEventListener('DOMContentLoaded', function () {
       if (!Array.isArray(tags)) tags = [String(tags)];
       if (!tags.length && item.highlight) tags = [item.highlight];
       var type = item.category || item.type || (index === 3 ? 'CORPORAL' : 'FACIAL');
-      return '<article class="procedure-card ' + (index === 1 ? 'active' : index === 0 || index === 2 ? 'dim' : '') + '">' +
+      return '<article class="procedure-card">' +
         '<div class="procedure-image">' + (image ? '<img src="' + safe(image) + '" alt="' + safe(titleText) + '">' : safe(titleText).toUpperCase() + '<small>substitua por foto real do procedimento</small>') + '</div>' +
         '<div class="procedure-body"><span>' + safe(type).toUpperCase() + '</span><h3>' + safe(titleText) + '</h3><p>' + safe(item.description || item.text || '') + '</p>' +
         '<div class="tags">' + tags.slice(0, 3).map(function (tag) { return '<b>' + safe(tag) + '</b>'; }).join('') + '</div>' +
         '<a class="btn btn-gold" href="' + getWhatsAppUrl('Tenho interesse em ' + titleText + '.') + '">Tenho interesse →</a></div></article>';
     }).join('');
-    setupProcedureCarousel();
+    initProcedureCarousel();
+  }
+
+  function testimonialHtml(item) {
+    var before = item.beforeImageUrl || item.beforeUrl || item.imageBefore || '';
+    var after = item.afterImageUrl || item.afterUrl || item.imageAfter || '';
+    var photo = item.imageUrl || item.photoUrl || '';
+    var body = '<div class="testimonial-body"><div>★★★★★</div><p>“' + safe(item.text || '') + '”</p><strong>' + safe(item.name || 'Cliente') + '</strong><span>' + safe(item.role || '') + '</span></div>';
+    if (before && after) return '<article class="testimonial-card has-ba"><div class="before-after"><figure><img src="' + safe(before) + '" alt="Antes"><figcaption>Antes</figcaption></figure><figure><img src="' + safe(after) + '" alt="Depois"><figcaption>Depois</figcaption></figure></div>' + body + '</article>';
+    if (photo) return '<article class="testimonial-card has-photo"><img class="client-photo" src="' + safe(photo) + '" alt="' + safe(item.name || 'Cliente') + '">' + body + '</article>';
+    return '<article class="testimonial-card">' + body + '</article>';
   }
 
   function updateTestimonials(config) {
@@ -303,9 +399,7 @@ document.addEventListener('DOMContentLoaded', function () {
     if (subtitle) subtitle.textContent = testimonials.subtitle && testimonials.subtitle.indexOf('painel') === -1 ? testimonials.subtitle : 'Histórias reais de pacientes que confiaram em nosso cuidado e transformaram sua autoestima.';
     var track = document.querySelector('.testimonial-track');
     if (!track) return;
-    track.innerHTML = testimonials.items.filter(function (item) { return item.visible !== false; }).slice(0, 8).map(function (item) {
-      return '<article class="testimonial-card"><div>★★★★★</div><p>“' + safe(item.text || '') + '”</p><strong>' + safe(item.name || 'Cliente') + '</strong><span>' + safe(item.role || '') + '</span></article>';
-    }).join('');
+    track.innerHTML = testimonials.items.filter(function (item) { return item.visible !== false; }).slice(0, 8).map(testimonialHtml).join('');
   }
 
   function updateFaq(config) {
