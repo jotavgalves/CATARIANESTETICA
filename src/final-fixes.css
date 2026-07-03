@@ -1,4 +1,4 @@
-/* Final public fixes v3: transform-based carousel, no native scroll, no page jump. */
+/* Final public fixes v4: arrows outside cards, transform carousel, symmetric testimonials. */
 html, body {
   max-width: 100%;
   overflow-x: hidden !important;
@@ -16,9 +16,23 @@ html, body {
   transform: translateY(-3px) scale(1.05) !important;
 }
 .procedure-carousel {
-  overflow: hidden !important;
-  padding-top: 34px !important;
-  padding-bottom: 20px !important;
+  overflow: visible !important;
+  padding: 34px 86px 20px !important;
+  width: min(100% - 72px, 1320px) !important;
+}
+.carousel-arrow {
+  z-index: 20 !important;
+  top: 50% !important;
+  width: 58px !important;
+  height: 58px !important;
+  background: rgba(2,17,31,.88) !important;
+  backdrop-filter: blur(10px);
+}
+.carousel-arrow.prev {
+  left: 8px !important;
+}
+.carousel-arrow.next {
+  right: 8px !important;
 }
 .procedure-track {
   overflow: visible !important;
@@ -88,6 +102,26 @@ html, body {
   opacity: 1;
   transform: translateY(0);
 }
+.testimonials .testimonial-track {
+  width: min(100% - 72px, 1280px) !important;
+  display: grid !important;
+  grid-template-columns: repeat(4, minmax(0, 1fr)) !important;
+  gap: 24px !important;
+  overflow: visible !important;
+  align-items: stretch !important;
+}
+.testimonial-card {
+  min-height: 276px !important;
+  height: 100% !important;
+}
+.testimonial-card .testimonial-body,
+.testimonial-card:not(.has-ba):not(.has-photo) {
+  display: flex !important;
+  flex-direction: column !important;
+}
+.testimonial-card strong {
+  margin-top: auto !important;
+}
 .proc-modal {
   position: fixed;
   inset: 0;
@@ -147,9 +181,16 @@ body.modal-open { overflow: hidden !important; }
 .testimonial-card.has-ba .testimonial-body { padding: 26px 28px 30px; display: flex; flex-direction: column; min-height: 230px; }
 .testimonial-card.has-photo .client-photo { width: 100%; height: 190px; object-fit: cover; border-bottom: 1px solid rgba(185,133,120,.18); }
 .testimonial-card.has-photo .testimonial-body { padding: 26px 28px 30px; }
+@media(max-width:1180px){
+  .testimonials .testimonial-track{grid-template-columns:repeat(2,minmax(0,1fr))!important;}
+}
 @media(max-width:760px){
   .proc-modal__dialog{grid-template-columns:1fr;}
   .proc-modal__media{min-height:260px;border-right:0;border-bottom:1px solid rgba(185,133,120,.22);}
   .whatsapp-float{right:16px!important;bottom:16px!important;}
+  .procedure-carousel{padding-left:38px!important;padding-right:38px!important;width:min(100% - 24px,1320px)!important;}
   .procedure-card{flex-basis:86vw!important;min-width:86vw!important;}
+  .carousel-arrow.prev{left:-4px!important;}
+  .carousel-arrow.next{right:-4px!important;}
+  .testimonials .testimonial-track{grid-template-columns:1fr!important;width:min(100% - 28px,1280px)!important;}
 }
