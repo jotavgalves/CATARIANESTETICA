@@ -2,8 +2,7 @@ name = "catarina-estetica"
 compatibility_date = "2026-07-03"
 pages_build_output_dir = "."
 
-# Depois de criar um KV Namespace no Cloudflare, descomente e preencha:
-# [[kv_namespaces]]
-# binding = "SITE_CONFIG"
-# id = "COLE_AQUI_O_ID_DO_KV_DE_PRODUCAO"
-# preview_id = "COLE_AQUI_O_ID_DO_KV_DE_PREVIEW"
+[[kv_namespaces]]
+binding = "SITE_CONFIG"
+id = "f619b37b517342fcae5d7e654e6c913a"
+preview_id = "f619b37b517342fcae5d7e654e6c913a"
