@@ -1,0 +1,2 @@
+function json(x,s=200,h={}){return new Response(JSON.stringify(x),{status:s,headers:{'content-type':'application/json',...h}})}
+export async function onRequestPost({request,env}){let body=await request.json().catch(()=>({}));if(!env.ADMIN_PASSWORD)return json({error:'ADMIN_PASSWORD ausente'},500);if(body.password!==env.ADMIN_PASSWORD)return json({error:'Senha incorreta'},401);return json({ok:true},200,{'set-cookie':'cq_session=ok; Path=/; HttpOnly; Secure; SameSite=Lax; Max-Age=86400'})}
