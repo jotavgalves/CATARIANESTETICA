@@ -3,200 +3,193 @@
   "site": {
     "name": "Catarina Queiroz",
     "businessName": "Catarina Queiroz Clínica Estética",
-    "language": "pt-BR",
-    "domain": "https://catarinaqueiroz.com.br/",
-    "logo": {
-      "type": "text",
-      "text": "Catarina Queiroz",
-      "subtitle": "CLÍNICA ESTÉTICA",
-      "imageUrl": "",
-      "width": 188,
-      "recommended": "SVG transparente, preferencialmente horizontal, até 900x300px."
+    "brandLine1": "CATARINA",
+    "brandLine2": "QUEIROZ",
+    "brandSubtitle": "CLÍNICA ESTÉTICA",
+    "logo": { "imageUrl": "", "alt": "Catarina Queiroz Clínica Estética" },
+    "seo": {
+      "title": "Clínica Estética em Boa Viagem, Recife | Catarina Queiroz",
+      "description": "Clínica estética em Boa Viagem, Recife. Avaliação personalizada e protocolos faciais e corporais."
     },
     "contact": {
-      "phoneDisplay": "(81) 98984-4806",
       "whatsappNumber": "5581989844806",
-      "whatsappMessage": "Olá, Catarina! Vim pelo site e gostaria de agendar uma avaliação.",
+      "phoneDisplay": "(81) 98984-4806",
+      "whatsappMessage": "Olá, vim pelo site e gostaria de agendar uma avaliação.",
       "address": "R. Ribeiro de Brito, 554 — Boa Viagem, Recife — PE",
       "mapsQuery": "R. Ribeiro de Brito, 554 Boa Viagem Recife PE",
       "mapsEmbedUrl": "",
-      "instagramUrl": ""
-    },
-    "seo": {
-      "title": "Clínica Estética em Boa Viagem, Recife | Catarina Queiroz",
-      "description": "Tratamentos estéticos faciais e corporais em Boa Viagem, Recife. Avaliação personalizada, limpeza de pele, drenagem, peeling, botox, endolaser, lipo enzimática e protocolos corporais.",
-      "keywords": "clínica estética Boa Viagem, estética Recife, limpeza de pele Boa Viagem, drenagem linfática Recife, botox Boa Viagem, endolaser Recife, Catarina Queiroz",
-      "ogImage": ""
-    },
-    "pixels": {
-      "enableTracking": false,
-      "metaPixelId": "",
-      "googleAdsId": "",
-      "googleAnalyticsId": ""
-    },
-    "maintenance": {
-      "enabled": false,
-      "title": "Voltamos em breve",
-      "message": "Estamos atualizando a experiência da clínica. Para agendamentos urgentes, fale pelo WhatsApp.",
-      "showWhatsapp": true
+      "hours": "Com hora marcada. Confirme os horários disponíveis pelo WhatsApp."
     }
   },
   "theme": {
     "colors": {
-      "navy": "#061B2E",
-      "deep": "#02111F",
-      "ink": "#101828",
-      "cream": "#FFFAF6",
-      "champagne": "#F8F0E8",
-      "rose": "#B98578",
-      "roseDark": "#7A4E48",
-      "gold": "#C9A86A",
-      "goldLight": "#E6CF97",
-      "soft": "#FFF4EE"
-    },
-    "layout": {
-      "snap": true,
-      "sectionHeight": 100,
-      "container": 1180,
-      "radius": 32,
-      "titleScale": 1,
-      "bodyScale": 1
+      "navy": "#02111f",
+      "navy2": "#263746",
+      "ink": "#071827",
+      "muted": "#526176",
+      "cream": "#fffaf6",
+      "rose": "#b98578",
+      "roseDark": "#7a4e48",
+      "gold": "#c9a86a",
+      "whatsapp": "#25d366"
     }
   },
-  "navigation": [
-    {"label": "Início", "href": "#inicio", "icon": "sparkles"},
-    {"label": "Queixas", "href": "#queixas", "icon": "scan-face"},
-    {"label": "Procedimentos", "href": "#procedimentos", "icon": "wand-sparkles"},
-    {"label": "Método", "href": "#metodo", "icon": "clipboard-check"},
-    {"label": "Depoimentos", "href": "#depoimentos", "icon": "message-circle-heart"},
-    {"label": "Contato", "href": "#contato", "icon": "map-pin"}
-  ],
+  "navigation": {
+    "ctaText": "Agendar avaliação",
+    "items": [
+      { "label": "Início", "href": "#inicio", "visible": true },
+      { "label": "Procedimentos", "href": "#procedimentos", "visible": true },
+      { "label": "Método", "href": "#metodo", "visible": true },
+      { "label": "Sobre", "href": "#sobre", "visible": true },
+      { "label": "FAQ", "href": "#faq", "visible": true },
+      { "label": "Localização", "href": "#localizacao", "visible": true }
+    ]
+  },
   "sections": {
     "hero": {
-      "enabled": true,
+      "visible": true,
       "kicker": "Estética facial e corporal em Boa Viagem",
-      "title": "Avaliação personalizada para realçar sua beleza com naturalidade.",
-      "highlight": "naturalidade",
-      "subtitle": "Protocolos faciais e corporais para pele, contorno, retenção de líquidos, flacidez e rejuvenescimento, indicados após uma análise individual.",
-      "primaryButton": "Agendar avaliação pelo WhatsApp",
-      "secondaryButton": "Explorar procedimentos",
-      "note": "Atendimento com hora marcada em Boa Viagem, Recife.",
-      "image": {"url": "", "alt": "Catarina Queiroz Clínica Estética", "position": "center center", "recommended": "1600x2000px, vertical, JPG ou WebP, imagem principal do hero."},
-      "metrics": [
-        {"value": "Boa Viagem", "label": "Recife • PE"},
-        {"value": "Avaliação", "label": "antes do protocolo"},
-        {"value": "Naturalidade", "label": "como objetivo estético"}
-      ]
+      "title": "A beleza que você quer valorizar tem um caminho certo.",
+      "subtitle": "Protocolos personalizados, tecnologia avançada e um olhar estético apurado para realçar o que há de melhor em você, com naturalidade e segurança.",
+      "primaryButton": "Agendar avaliação",
+      "secondaryButton": "Ver procedimentos",
+      "image": { "url": "", "alt": "Foto principal", "label": "FOTO PRINCIPAL", "note": "substitua por foto real da clínica" }
     },
-    "trust": {
-      "enabled": true,
-      "items": [
-        {"icon": "shield-check", "title": "Avaliação individual", "text": "Cada protocolo parte de uma análise do seu objetivo, rotina e necessidade."},
-        {"icon": "sparkles", "title": "Estética premium", "text": "Experiência visual, atendimento e cuidado pensados para transmitir confiança."},
-        {"icon": "calendar-check", "title": "Hora marcada", "text": "Atendimento organizado para respeitar seu tempo e sua privacidade."}
-      ]
-    },
+    "ticker": { "visible": true, "speedSeconds": 34 },
     "complaints": {
-      "enabled": true,
-      "kicker": "O que você deseja melhorar?",
-      "title": "Escolha uma queixa e veja o caminho de cuidado ideal.",
-      "subtitle": "O foco é orientar, não prometer resultado. A indicação correta depende de avaliação individual.",
+      "visible": true,
+      "kicker": "Cuidado direcionado",
+      "title": "A beleza que você quer valorizar tem um caminho certo.",
+      "subtitle": "A paciente não precisa escolher sozinha. A indicação vem depois de entender queixa, rotina e objetivo.",
       "items": [
-        {"icon": "droplets", "title": "Retenção de líquidos", "text": "Protocolos de drenagem e cuidado corporal para sensação de leveza."},
-        {"icon": "sparkle", "title": "Pele opaca ou congestionada", "text": "Limpeza de pele, renovação e protocolos para luminosidade."},
-        {"icon": "scan-face", "title": "Linhas e sinais de idade", "text": "Condutas faciais planejadas para naturalidade e rejuvenescimento."},
-        {"icon": "badge-check", "title": "Contorno corporal", "text": "Protocolos corporais personalizados, definidos após avaliação."}
+        { "icon": "♧", "title": "Pele com cravos, oleosidade ou textura irregular", "text": "Cuidados para limpeza profunda, renovação, hidratação e melhora da luminosidade.", "visible": true },
+        { "icon": "☺", "title": "Rosto inchado ou aparência cansada", "text": "Drenagem e protocolos faciais para leveza, viço e contorno mais descansado.", "visible": true },
+        { "icon": "≈", "title": "Retenção, celulite e sensação de peso", "text": "Tratamentos corporais para circulação, firmeza, uniformidade da pele e definição.", "visible": true },
+        { "icon": "✦", "title": "Linhas e sinais de idade", "text": "Condutas faciais planejadas para naturalidade e rejuvenescimento.", "visible": true },
+        { "icon": "◇", "title": "Contorno corporal", "text": "Protocolos corporais personalizados, definidos após avaliação.", "visible": true },
+        { "icon": "✓", "title": "Indicação com segurança", "text": "Escolha do procedimento com orientação técnica e expectativa realista.", "visible": true }
       ]
     },
     "procedures": {
-      "enabled": true,
+      "visible": true,
       "kicker": "Procedimentos",
-      "title": "Protocolos faciais e corporais",
-      "subtitle": "Cards editáveis pelo painel: imagem, ícone Lucide, título, texto, destaque e ordem.",
+      "title": "Procedimentos disponíveis após avaliação.",
+      "subtitle": "Veja os principais protocolos disponíveis e use a avaliação para confirmar a indicação correta para sua pele, corpo e objetivo.",
+      "metaText": "Setas • arraste • swipe • teclado",
       "items": [
-        {"id": "limpeza-pele", "icon": "sparkles", "title": "Limpeza de pele", "description": "Higienização profunda, extração cuidadosa e finalização personalizada para uma pele mais equilibrada.", "imageUrl": "", "recommended": "1200x900px, JPG/WebP, horizontal."},
-        {"id": "drenagem-facial", "icon": "waves", "title": "Drenagem facial", "description": "Técnica manual para reduzir sensação de inchaço facial e estimular leveza no contorno.", "imageUrl": "", "recommended": "1200x900px, JPG/WebP, rosto ou atendimento."},
-        {"id": "drenagem-hd", "icon": "activity", "title": "Drenagem HD", "description": "Protocolo corporal com foco em definição visual, leveza e cuidado pós-avaliação.", "imageUrl": "", "recommended": "1200x900px, JPG/WebP, imagem corporal."},
-        {"id": "peeling", "icon": "leaf", "title": "Peeling", "description": "Renovação da pele para textura, luminosidade e uniformidade, conforme indicação profissional.", "imageUrl": "", "recommended": "1200x900px, JPG/WebP."},
-        {"id": "botox", "icon": "syringe", "title": "Botox", "description": "Aplicação planejada para suavizar sinais, preservando expressão e naturalidade.", "imageUrl": "", "recommended": "1200x900px, JPG/WebP, rosto limpo."},
-        {"id": "endolaser", "icon": "zap", "title": "Endolaser", "description": "Tecnologia para protocolos corporais e faciais, sempre com avaliação e indicação adequadas.", "imageUrl": "", "recommended": "1200x900px, JPG/WebP."},
-        {"id": "lipo-enzimatica", "icon": "gem", "title": "Lipo enzimática", "description": "Protocolo estético corporal definido conforme avaliação, objetivo e segurança.", "imageUrl": "", "recommended": "1200x900px, JPG/WebP."},
-        {"id": "protocolos-corporais", "icon": "heart-pulse", "title": "Protocolos corporais", "description": "Combinações personalizadas para bem-estar, contorno e autoestima.", "imageUrl": "", "recommended": "1200x900px, JPG/WebP."}
+        { "title": "Limpeza de Pele", "category": "FACIAL", "description": "Remove impurezas, cravos, células mortas e excesso de oleosidade, promovendo pele mais limpa, saudável e renovada.", "imageUrl": "", "imageLabel": "LIMPEZA DE PELE", "imageNote": "substitua por foto real do procedimento", "tags": ["Pele renovada", "Hidratação"], "visible": true },
+        { "title": "Drenagem Facial", "category": "FACIAL", "description": "Massagem suave que estimula circulação e sistema linfático, reduzindo inchaço, melhorando contorno facial e aparência descansada.", "imageUrl": "", "imageLabel": "DRENAGEM FACIAL", "imageNote": "substitua por foto real do procedimento", "tags": ["Leveza", "Contorno"], "visible": true },
+        { "title": "Peeling Químico", "category": "FACIAL", "description": "Utiliza ativos específicos para renovação da pele, suavização de manchas, textura irregular, marcas de acne, linhas finas e opacidade.", "imageUrl": "", "imageLabel": "PEELING QUÍMICO", "imageNote": "substitua por foto real do procedimento", "tags": ["Luminosidade", "Textura"], "visible": true },
+        { "title": "Drenagem HD", "category": "CORPORAL", "description": "Protocolo corporal para sensação de leveza, retenção de líquidos e definição visual, sempre após avaliação individual.", "imageUrl": "", "imageLabel": "DRENAGEM HD", "imageNote": "substitua por foto real do procedimento", "tags": ["Corpo", "Leveza"], "visible": true }
       ]
     },
     "method": {
-      "enabled": true,
-      "kicker": "Método",
-      "title": "Uma jornada de cuidado em quatro etapas.",
-      "subtitle": "Do primeiro contato ao acompanhamento, tudo é pensado para clareza e segurança.",
+      "visible": true,
+      "kicker": "Método Catarina Queiroz",
+      "title": "Um processo mais elegante que uma lista de procedimentos.",
+      "subtitle": "A experiência premium começa antes do procedimento: começa na clareza da indicação.",
       "steps": [
-        {"icon": "message-circle", "title": "Contato", "text": "Você agenda pelo WhatsApp e recebe as primeiras orientações."},
-        {"icon": "clipboard-check", "title": "Avaliação", "text": "Análise individual para entender objetivos e contraindicações."},
-        {"icon": "wand-sparkles", "title": "Protocolo", "text": "Indicação do tratamento mais adequado para o seu caso."},
-        {"icon": "badge-check", "title": "Acompanhamento", "text": "Orientações para manter consistência e cuidado no pós."}
+        { "icon": "▣", "number": "01", "title": "Avaliação estética", "text": "Entendimento da queixa, rotina, objetivo, histórico e características individuais.", "visible": true },
+        { "icon": "⌘", "number": "02", "title": "Planejamento", "text": "Definição dos procedimentos mais adequados para pele, corpo e expectativa.", "visible": true },
+        { "icon": "✧", "number": "03", "title": "Execução técnica", "text": "Atendimento com hora marcada, ambiente preparado e orientação clara.", "visible": true },
+        { "icon": "↗", "number": "04", "title": "Evolução", "text": "Recomendações e acompanhamento para potencializar resultado progressivo.", "visible": true }
+      ]
+    },
+    "featured": {
+      "visible": true,
+      "kicker": "Protocolos em destaque",
+      "title": "Tratamentos que geram desejo na primeira visita.",
+      "subtitle": "Uma vitrine curta para direcionar pacientes que já chegam com uma queixa mais definida.",
+      "items": [
+        { "label": "Tecnologia", "title": "Endolaser", "text": "Para quem busca melhora de contorno corporal, flacidez e gordura localizada com tecnologia avançada e evolução progressiva.", "button": "Tenho interesse →", "visible": true },
+        { "label": "Contorno", "title": "Drenagem HD", "text": "Para reduzir inchaço, retenção de líquidos e promover sensação de leveza com contorno corporal mais definido.", "button": "Tenho interesse →", "visible": true },
+        { "label": "Naturalidade", "title": "Botox", "text": "Para suavizar linhas de expressão e manter uma aparência jovem, descansada e natural, sem exageros.", "button": "Tenho interesse →", "visible": true }
       ]
     },
     "about": {
-      "enabled": true,
-      "kicker": "Sobre Catarina",
-      "title": "Cuidado estético com técnica, escuta e sensibilidade.",
-      "text": "A clínica foi pensada para quem busca uma experiência de estética avançada sem perder naturalidade. Cada protocolo é planejado com atenção ao detalhe, conforto e segurança.",
-      "image": {"url": "", "alt": "Catarina Queiroz", "position": "center center", "recommended": "1400x1800px, vertical, retrato profissional ou ambiente da clínica."},
-      "bullets": ["Atendimento com avaliação personalizada", "Protocolos faciais e corporais", "Ambiente premium em Boa Viagem", "Comunicação clara e realista"]
+      "visible": true,
+      "kicker": "A especialista",
+      "title": "Catarina Queiroz",
+      "paragraphs": [
+        "Graduada em Estética e Cosmetologia, Catarina atua com tratamentos faciais e corporais voltados à autoestima, ao bem-estar e à valorização da beleza individual.",
+        "Sua abordagem une técnica, atendimento humanizado e planejamento personalizado para indicar o procedimento mais adequado, sem transformar a paciente em um padrão artificial."
+      ],
+      "bullets": ["Protocolos personalizados após avaliação", "Atendimento com hora marcada", "Clínica em Boa Viagem, Recife"],
+      "button": "Falar pelo WhatsApp",
+      "image": { "url": "", "alt": "Foto sobre", "label": "FOTO SOBRE", "note": "coloque uma foto real na clínica" }
     },
     "authority": {
-      "enabled": true,
-      "kicker": "Autoridade",
-      "title": "Beleza não é padronização. É estratégia, cuidado e proporção.",
-      "quote": "A melhor estética é aquela que respeita sua identidade.",
+      "visible": true,
+      "kicker": "Confiança",
+      "title": "Mais segurança antes de decidir.",
+      "subtitle": "Clareza na indicação, localização acessível e atendimento organizado para tornar a decisão mais segura.",
       "items": [
-        {"icon": "eye", "title": "Olhar individual", "text": "Nenhum protocolo deve ser escolhido sem avaliação."},
-        {"icon": "scale", "title": "Expectativa realista", "text": "Comunicação clara sobre possibilidades, cuidados e limites."},
-        {"icon": "sparkles", "title": "Resultado natural", "text": "A proposta é valorizar, não transformar artificialmente."}
+        { "icon": "✓", "title": "Avaliação antes da indicação", "text": "A paciente não precisa escolher sozinha. A indicação vem depois de entender queixa, rotina e objetivo.", "visible": true },
+        { "icon": "▣", "title": "Agenda organizada", "text": "Atendimento com hora marcada para reduzir espera e manter uma experiência mais confortável.", "visible": true },
+        { "icon": "⌖", "title": "Atendimento local", "text": "Clínica localizada em Boa Viagem, facilitando o acesso para pacientes de Recife e região.", "visible": true }
       ]
     },
     "testimonials": {
-      "enabled": true,
+      "visible": true,
       "kicker": "Depoimentos",
       "title": "Experiências de quem já passou pela clínica",
-      "subtitle": "Você pode adicionar quantos depoimentos quiser pelo painel visual. Deixei 10 iniciais cadastrados.",
+      "subtitle": "Histórias reais de pacientes que confiaram em nosso cuidado e transformaram sua autoestima.",
       "items": [
-        {"id": "dep-01", "name": "Cliente 01", "role": "Atendimento facial", "text": "Atendimento muito cuidadoso, com explicação clara do protocolo e um ambiente lindo.", "rating": 5, "imageUrl": "", "visible": true},
-        {"id": "dep-02", "name": "Cliente 02", "role": "Drenagem", "text": "Me senti acolhida desde o primeiro contato. Tudo foi explicado com muita calma.", "rating": 5, "imageUrl": "", "visible": true},
-        {"id": "dep-03", "name": "Cliente 03", "role": "Limpeza de pele", "text": "Amei a experiência. A pele ficou com sensação de limpeza e leveza.", "rating": 5, "imageUrl": "", "visible": true},
-        {"id": "dep-04", "name": "Cliente 04", "role": "Protocolo corporal", "text": "Gostei muito da avaliação individual e do cuidado no acompanhamento.", "rating": 5, "imageUrl": "", "visible": true},
-        {"id": "dep-05", "name": "Cliente 05", "role": "Facial", "text": "Ambiente elegante, atendimento pontual e muita atenção aos detalhes.", "rating": 5, "imageUrl": "", "visible": true},
-        {"id": "dep-06", "name": "Cliente 06", "role": "Avaliação estética", "text": "Catarina explicou tudo sem pressa e indicou exatamente o que fazia sentido para mim.", "rating": 5, "imageUrl": "", "visible": true},
-        {"id": "dep-07", "name": "Cliente 07", "role": "Peeling", "text": "Experiência segura e profissional. Senti muita confiança no atendimento.", "rating": 5, "imageUrl": "", "visible": true},
-        {"id": "dep-08", "name": "Cliente 08", "role": "Drenagem facial", "text": "O atendimento foi delicado e o resultado visual ficou muito natural.", "rating": 5, "imageUrl": "", "visible": true},
-        {"id": "dep-09", "name": "Cliente 09", "role": "Protocolo personalizado", "text": "Gostei de não ser algo pronto. Ela avaliou meu caso antes de indicar qualquer coisa.", "rating": 5, "imageUrl": "", "visible": true},
-        {"id": "dep-10", "name": "Cliente 10", "role": "Experiência premium", "text": "Tudo muito organizado: do WhatsApp ao atendimento presencial.", "rating": 5, "imageUrl": "", "visible": true}
+        { "name": "Cliente 01", "role": "Atendimento facial", "text": "Atendimento muito cuidadoso, com explicação clara do protocolo e um ambiente lindo.", "imageUrl": "", "beforeImageUrl": "", "afterImageUrl": "", "visible": true },
+        { "name": "Cliente 02", "role": "Drenagem", "text": "Me senti acolhida desde o primeiro contato. Tudo foi explicado com muita calma.", "imageUrl": "", "beforeImageUrl": "", "afterImageUrl": "", "visible": true },
+        { "name": "Cliente 03", "role": "Limpeza de pele", "text": "Amei a experiência. A pele ficou com sensação de limpeza e leveza.", "imageUrl": "", "beforeImageUrl": "", "afterImageUrl": "", "visible": true }
       ]
     },
     "faq": {
-      "enabled": true,
+      "visible": true,
       "kicker": "Dúvidas frequentes",
-      "title": "Antes de agendar",
+      "title": "Antes de agendar.",
+      "subtitle": "Respostas objetivas para reduzir atrito e facilitar o primeiro contato pelo WhatsApp.",
       "items": [
-        {"question": "Como funciona a avaliação?", "answer": "A avaliação é feita antes da indicação do protocolo, considerando objetivo, histórico e necessidade individual."},
-        {"question": "Posso escolher o procedimento sozinha?", "answer": "Você pode informar o que deseja melhorar, mas a indicação correta depende da avaliação profissional."},
-        {"question": "Onde fica a clínica?", "answer": "A clínica fica em Boa Viagem, Recife. O endereço completo aparece na seção de contato."},
-        {"question": "Como agendo?", "answer": "Clique no botão de WhatsApp e envie a mensagem automática para iniciar o atendimento."}
+        { "question": "Preciso saber qual procedimento quero antes de agendar?", "answer": "Não. A avaliação existe justamente para entender sua queixa e indicar o caminho mais adequado.", "visible": true },
+        { "question": "Os resultados são imediatos?", "answer": "Depende do protocolo, da resposta individual e dos cuidados indicados.", "visible": true },
+        { "question": "Posso combinar procedimentos?", "answer": "Sim, quando houver indicação profissional e segurança para a combinação.", "visible": true },
+        { "question": "O atendimento é por hora marcada?", "answer": "Sim. O atendimento é organizado para preservar tempo, conforto e privacidade.", "visible": true },
+        { "question": "Como faço para agendar?", "answer": "Clique no botão de WhatsApp e envie a mensagem automática.", "visible": true }
       ]
     },
-    "location": {"enabled": true, "kicker": "Localização", "title": "Boa Viagem, Recife", "subtitle": "Atendimento com hora marcada em ambiente reservado.", "image": {"url": "", "alt": "Ambiente da clínica", "recommended": "1400x1000px, horizontal, fachada ou ambiente."}},
-    "finalCta": {"enabled": true, "title": "Pronta para viver uma experiência estética mais personalizada?", "subtitle": "Agende sua avaliação pelo WhatsApp e receba orientação para escolher o melhor protocolo.", "button": "Quero agendar minha avaliação"}
+    "location": {
+      "visible": true,
+      "kicker": "Localização",
+      "title": "Atendimento em Boa Viagem, Recife.",
+      "cardTitle": "Catarina Queiroz Clínica Estética",
+      "addressLabel": "Endereço",
+      "whatsappLabel": "WhatsApp",
+      "hoursLabel": "Atendimento",
+      "primaryButton": "Agendar",
+      "routeButton": "Traçar rota"
+    },
+    "finalCta": {
+      "visible": true,
+      "title": "O próximo passo não é escolher um procedimento. É entender o que faz sentido para você.",
+      "subtitle": "Fale com a clínica, explique sua principal queixa e receba orientação para agendar uma avaliação estética personalizada.",
+      "button": "Agendar avaliação estética"
+    }
   },
+  "footer": {
+    "visible": true,
+    "tagline": "Estética facial e corporal em Boa Viagem, Recife.",
+    "proceduresTitle": "Procedimentos",
+    "navigationTitle": "Navegação",
+    "contactTitle": "Contato",
+    "copyright": "Todos os direitos reservados — Catarina Queiroz Clínica Estética.",
+    "procedureLinks": ["Limpeza de Pele", "Drenagem HD", "Endolaser", "Botox"],
+    "navigationLinks": ["Início", "Procedimentos", "Método", "Sobre"]
+  },
+  "pixels": { "metaPixelId": "", "googleAdsId": "", "enabled": false },
+  "maintenance": { "enabled": false, "title": "Site em manutenção", "message": "Voltaremos em breve." },
   "drive": {
-    "folderId": "",
     "specs": [
-      {"field": "Logo", "target": "site.logo.imageUrl", "size": "SVG transparente ou PNG 900x300px", "format": "SVG/PNG", "note": "Fundo transparente, versão horizontal."},
-      {"field": "Hero", "target": "sections.hero.image.url", "size": "1600x2000px", "format": "JPG/WebP", "note": "Imagem vertical premium da clínica, profissional ou procedimento."},
-      {"field": "Sobre", "target": "sections.about.image.url", "size": "1400x1800px", "format": "JPG/WebP", "note": "Retrato profissional ou ambiente da clínica."},
-      {"field": "Cards de procedimentos", "target": "sections.procedures.items[].imageUrl", "size": "1200x900px", "format": "JPG/WebP", "note": "Horizontal, boa luz, sem textos na imagem."},
-      {"field": "Depoimentos", "target": "sections.testimonials.items[].imageUrl", "size": "800x800px", "format": "JPG/WebP", "note": "Foto quadrada da cliente, apenas com autorização."},
-      {"field": "OG/WhatsApp", "target": "site.seo.ogImage", "size": "1200x630px", "format": "JPG/WebP", "note": "Imagem de compartilhamento do link."}
+      { "field": "Logo", "size": "SVG transparente ou PNG 900x300px" },
+      { "field": "Hero", "size": "1600x2000px JPG/WebP" },
+      { "field": "Sobre", "size": "1400x1800px JPG/WebP" },
+      { "field": "Procedimentos", "size": "1200x900px JPG/WebP" },
+      { "field": "Depoimentos / antes e depois", "size": "1080x1350px ou mesma proporção nas duas fotos" }
     ]
   }
 }
-
