@@ -1,0 +1,4 @@
+ADMIN_PASSWORD="troque-esta-senha"
+ADMIN_SESSION_SECRET="troque-este-segredo"
+GOOGLE_DRIVE_API_KEY=""
+GOOGLE_DRIVE_FOLDER_ID=""
