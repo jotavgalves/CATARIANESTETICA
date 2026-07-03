@@ -1,0 +1,1 @@
+{"name":"catarina-estetica-cloudflare-pages","version":"1.0.0","private":true,"type":"module","scripts":{"dev":"wrangler pages dev . --kv=SITE_CONFIG","deploy":"wrangler pages deploy .","check":"echo Projeto preparado para Cloudflare Pages"},"devDependencies":{"wrangler":"latest"}}
