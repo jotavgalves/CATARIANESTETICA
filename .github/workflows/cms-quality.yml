@@ -1,0 +1,73 @@
+name: CMS Quality
+
+on:
+  pull_request:
+    paths:
+      - "app/**"
+      - ".github/workflows/cms-quality.yml"
+  push:
+    branches: [main]
+    paths:
+      - "app/**"
+
+jobs:
+  quality:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: app
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Install dependencies
+        run: npm install
+      - name: TypeScript
+        id: typecheck
+        shell: bash
+        run: |
+          set +e
+          npm run typecheck 2>&1 | tee typecheck.log
+          exit ${PIPESTATUS[0]}
+      - name: Upload TypeScript diagnostic
+        if: failure() && steps.typecheck.outcome == 'failure'
+        uses: actions/upload-artifact@v4
+        with:
+          name: typecheck-diagnostic
+          path: app/typecheck.log
+      - name: ESLint
+        id: eslint
+        shell: bash
+        run: |
+          set +e
+          npm run lint 2>&1 | tee eslint.log
+          exit ${PIPESTATUS[0]}
+      - name: Upload ESLint diagnostic
+        if: failure() && steps.eslint.outcome == 'failure'
+        uses: actions/upload-artifact@v4
+        with:
+          name: eslint-diagnostic
+          path: app/eslint.log
+      - name: Stylelint
+        id: stylelint
+        shell: bash
+        run: |
+          set +e
+          npm run lint:css 2>&1 | tee stylelint.log
+          exit ${PIPESTATUS[0]}
+      - name: Upload Stylelint diagnostic
+        if: failure() && steps.stylelint.outcome == 'failure'
+        uses: actions/upload-artifact@v4
+        with:
+          name: stylelint-diagnostic
+          path: app/stylelint.log
+      - name: Architecture tests
+        run: npm run test
+      - name: Production build
+        run: npm run build
+      - name: Verify generated bundles
+        run: |
+          test "$(find dist/assets -name '*.js' | wc -l)" -ge 1
+          ! grep -R "!important" dist
+          ! grep -R "fix-final\|patch-temp" dist

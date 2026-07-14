@@ -1,0 +1,7 @@
+project_id = "euvwkkmkkunuimbrfpds"
+
+[functions.track-event]
+verify_jwt = false
+
+[functions.tracking-secrets]
+verify_jwt = true
