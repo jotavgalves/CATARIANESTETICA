@@ -1,4 +1,4 @@
-import type { AdminData, FaqRecord, ProcedureRecord, ResultRecord, SectionRecord, TestimonialRecord } from "../lib/types";
+import type { AdminData, FaqRecord, ProcedureRecord, ResultRecord, TestimonialRecord } from "../lib/types";
 import type { Membership } from "./repository";
 
 export type AdminTab = "dashboard" | "settings" | "content" | "procedures" | "results" | "testimonials" | "faq" | "tracking" | "media";
@@ -19,7 +19,12 @@ const escapeHtml = (value: unknown): string => String(value ?? "")
   .replaceAll('"', "&quot;")
   .replaceAll("'", "&#039;");
 
-const input = (name: string, label: string, value: unknown, options: { type?: string; full?: boolean; required?: boolean; placeholder?: string } = {}): string => `
+const input = (
+  name: string,
+  label: string,
+  value: unknown,
+  options: { type?: string; full?: boolean; required?: boolean; placeholder?: string } = {},
+): string => `
   <div class="field${options.full ? " field-full" : ""}">
     <label for="${name}">${escapeHtml(label)}</label>
     <input id="${name}" name="${name}" type="${options.type ?? "text"}" value="${escapeHtml(value)}"${options.required ? " required" : ""}${options.placeholder ? ` placeholder="${escapeHtml(options.placeholder)}"` : ""}>
@@ -42,11 +47,19 @@ const uploadField = (target: string, label: string): string => `
 
 function navigation(active: AdminTab): string {
   const items: Array<[AdminTab, string]> = [
-    ["dashboard", "Visão geral"], ["settings", "Configurações"], ["content", "Conteúdo"],
-    ["procedures", "Procedimentos"], ["results", "Antes e depois"], ["testimonials", "Depoimentos"],
-    ["faq", "Perguntas"], ["tracking", "Pixels e Ads"], ["media", "Imagens"],
+    ["dashboard", "Visão geral"],
+    ["settings", "Configurações"],
+    ["content", "Conteúdo"],
+    ["procedures", "Procedimentos"],
+    ["results", "Antes e depois"],
+    ["testimonials", "Depoimentos"],
+    ["faq", "Perguntas"],
+    ["tracking", "Pixels e Ads"],
+    ["media", "Imagens"],
   ];
-  return items.map(([tab, label]) => `<button type="button" class="${active === tab ? "is-active" : ""}" data-tab="${tab}">${label}</button>`).join("");
+  return items
+    .map(([tab, label]) => `<button type="button" class="${active === tab ? "is-active" : ""}" data-tab="${tab}">${label}</button>`)
+    .join("");
 }
 
 export function renderLogin(message = ""): string {
@@ -85,13 +98,16 @@ function faqForm(item?: FaqRecord): string {
   return `<section class="panel"><div class="panel-heading"><h2>${item ? "Editar pergunta" : "Nova pergunta"}</h2>${item ? '<button class="button button-outline button-small" type="button" data-cancel-edit>Cancelar</button>' : ""}</div><form class="form-grid" data-form="faq"><input type="hidden" name="id" value="${escapeHtml(item?.id)}">${input("question", "Pergunta", item?.question, { full: true, required: true })}${textarea("answer", "Resposta", item?.answer)}${input("sort_order", "Ordem", item?.sort_order ?? 0, { type: "number" })}<div class="field">${checkbox("is_published", "Publicado", item?.is_published ?? true)}</div><div class="form-actions"><button class="button button-primary" type="submit">Salvar pergunta</button></div></form></section>`;
 }
 
-function dataRows(items: Array<ProcedureRecord | ResultRecord | TestimonialRecord | FaqRecord>, type: "procedure" | "result" | "testimonial" | "faq"): string {
+function dataRows(
+  items: Array<ProcedureRecord | ResultRecord | TestimonialRecord | FaqRecord>,
+  type: "procedure" | "result" | "testimonial" | "faq",
+): string {
   if (items.length === 0) return '<div class="empty-state">Nenhum item cadastrado.</div>';
   return `<div class="data-list">${items.map((item) => {
     const title = "name" in item ? item.name : "title" in item ? item.title : "question" in item ? item.question : item.client_display_name;
     const image = "image_url" in item ? item.image_url : "before_image_url" in item ? item.before_image_url : "photo_url" in item ? item.photo_url : "";
     const published = "is_published" in item ? item.is_published : false;
-    return `<article class="data-row">${image ? `<img src="${escapeHtml(image)}" alt="">` : '<div></div>'}<div><strong>${escapeHtml(title)}</strong><span>${published ? "Publicado" : "Oculto ou rascunho"}</span></div><div class="row-actions"><button class="button button-outline button-small" type="button" data-edit-type="${type}" data-edit-id="${escapeHtml(item.id)}">Editar</button><button class="button button-danger button-small" type="button" data-delete-type="${type}" data-delete-id="${escapeHtml(item.id)}">Excluir</button></div></article>`;
+    return `<article class="data-row">${image ? `<img src="${escapeHtml(image)}" alt="">` : "<div></div>"}<div><strong>${escapeHtml(title)}</strong><span>${published ? "Publicado" : "Oculto ou rascunho"}</span></div><div class="row-actions"><button class="button button-outline button-small" type="button" data-edit-type="${type}" data-edit-id="${escapeHtml(item.id)}">Editar</button><button class="button button-danger button-small" type="button" data-delete-type="${type}" data-delete-id="${escapeHtml(item.id)}">Excluir</button></div></article>`;
   }).join("")}</div>`;
 }
 
