@@ -1,0 +1,4 @@
+.button-on-dark {
+  color: var(--color-white);
+  border-color: rgb(255 255 255 / 25%);
+}
