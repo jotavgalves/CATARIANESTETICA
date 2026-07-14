@@ -62,12 +62,12 @@ function initializeInteractions(analytics: AnalyticsService): void {
 
     const tracked = target.closest<HTMLElement>("[data-track]");
     const eventName = tracked?.dataset.track;
-    if (eventName) {
-      void analytics.track(eventName as Parameters<AnalyticsService["track"]>[0], {
-        placement: tracked.dataset.placement,
-        procedureId: tracked.dataset.procedureId,
-        procedureName: tracked.dataset.procedureName,
-      });
+    if (eventName && tracked) {
+      const context: Record<string, string> = {};
+      if (tracked.dataset.placement) context.placement = tracked.dataset.placement;
+      if (tracked.dataset.procedureId) context.procedureId = tracked.dataset.procedureId;
+      if (tracked.dataset.procedureName) context.procedureName = tracked.dataset.procedureName;
+      void analytics.track(eventName as Parameters<AnalyticsService["track"]>[0], context);
     }
   });
 
@@ -75,7 +75,7 @@ function initializeInteractions(analytics: AnalyticsService): void {
     for (const entry of entries) {
       if (!entry.isIntersecting) continue;
       const resultId = (entry.target as HTMLElement).dataset.resultId;
-      void analytics.track("view_result", { resultId });
+      void analytics.track("view_result", resultId ? { resultId } : {});
       resultObserver.unobserve(entry.target);
     }
   }, { threshold: 0.65 });
