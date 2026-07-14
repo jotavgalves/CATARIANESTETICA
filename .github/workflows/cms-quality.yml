@@ -1,0 +1,32 @@
+name: CMS Quality
+
+on:
+  pull_request:
+    paths:
+      - "app/**"
+      - ".github/workflows/cms-quality.yml"
+  push:
+    branches: [main]
+    paths:
+      - "app/**"
+
+jobs:
+  quality:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: app
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: app/package-lock.json
+      - run: npm install
+      - run: npm run check
+      - name: Verify generated bundles
+        run: |
+          test "$(find dist/assets -name '*.js' | wc -l)" -ge 1
+          ! grep -R "!important" dist
+          ! grep -R "fix-final\|patch-temp" dist
