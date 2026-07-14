@@ -22,9 +22,13 @@ declare global {
   interface Window { __cqAdminAppInitialized?: boolean; }
 }
 
-const root = document.querySelector<HTMLElement>("#admin-root");
-if (!root) throw new Error("Admin root is missing.");
+function requiredElement<T extends Element>(selector: string): T {
+  const element = document.querySelector<T>(selector);
+  if (!element) throw new Error(`Required element not found: ${selector}`);
+  return element;
+}
 
+const root = requiredElement<HTMLElement>("#admin-root");
 let state: AdminViewState | null = null;
 let loginMessage = "";
 
@@ -96,7 +100,11 @@ async function submitLogin(form: HTMLFormElement): Promise<void> {
 async function submitSettings(form: HTMLFormElement): Promise<void> {
   if (!state) return;
   const data = new FormData(form);
-  const keys = ["professional_name", "professional_title", "logo_url", "favicon_url", "whatsapp", "phone", "email", "instagram_url", "address_line", "city", "state", "maps_url", "opening_hours", "seo_title", "seo_description", "footer_text"];
+  const keys = [
+    "professional_name", "professional_title", "logo_url", "favicon_url", "whatsapp", "phone",
+    "email", "instagram_url", "address_line", "city", "state", "maps_url", "opening_hours",
+    "seo_title", "seo_description", "footer_text",
+  ];
   const payload = Object.fromEntries(keys.map((key) => [key, value(data, key)]));
   await saveSettings(state.membership.siteId, payload);
   await reloadData("Configurações salvas.");
@@ -142,12 +150,19 @@ async function submitProcedure(form: HTMLFormElement): Promise<void> {
   if (!state) return;
   const data = new FormData(form);
   await upsertRecord("cq_procedures", state.membership.siteId, {
-    name: value(data, "name"), slug: value(data, "slug"), category: value(data, "category"),
-    image_url: value(data, "image_url"), short_description: value(data, "short_description"),
-    full_description: value(data, "full_description"), duration: value(data, "duration"),
-    session_estimate: value(data, "session_estimate"), contraindications: value(data, "contraindications"),
-    whatsapp_message: value(data, "whatsapp_message"), sort_order: numberValue(data, "sort_order"),
-    is_featured: checked(form, "is_featured"), is_published: checked(form, "is_published"),
+    name: value(data, "name"),
+    slug: value(data, "slug"),
+    category: value(data, "category"),
+    image_url: value(data, "image_url"),
+    short_description: value(data, "short_description"),
+    full_description: value(data, "full_description"),
+    duration: value(data, "duration"),
+    session_estimate: value(data, "session_estimate"),
+    contraindications: value(data, "contraindications"),
+    whatsapp_message: value(data, "whatsapp_message"),
+    sort_order: numberValue(data, "sort_order"),
+    is_featured: checked(form, "is_featured"),
+    is_published: checked(form, "is_published"),
   }, value(data, "id") || undefined);
   await reloadData("Procedimento salvo.");
 }
@@ -159,12 +174,19 @@ async function submitResult(form: HTMLFormElement): Promise<void> {
   const hasConsent = checked(form, "consent_confirmed");
   if (isPublished && !hasConsent) throw new Error("Confirme a autorização antes de publicar o resultado.");
   await upsertRecord("cq_results", state.membership.siteId, {
-    title: value(data, "title"), summary: value(data, "summary"), procedure_id: value(data, "procedure_id") || null,
-    body_area: value(data, "body_area"), before_image_url: value(data, "before_image_url"),
-    after_image_url: value(data, "after_image_url"), sessions: value(data, "sessions"),
-    treatment_period: value(data, "treatment_period"), testimonial_text: value(data, "testimonial_text"),
-    client_display_name: value(data, "client_display_name"), sort_order: numberValue(data, "sort_order"),
-    consent_confirmed: hasConsent, is_published: isPublished,
+    title: value(data, "title"),
+    summary: value(data, "summary"),
+    procedure_id: value(data, "procedure_id") || null,
+    body_area: value(data, "body_area"),
+    before_image_url: value(data, "before_image_url"),
+    after_image_url: value(data, "after_image_url"),
+    sessions: value(data, "sessions"),
+    treatment_period: value(data, "treatment_period"),
+    testimonial_text: value(data, "testimonial_text"),
+    client_display_name: value(data, "client_display_name"),
+    sort_order: numberValue(data, "sort_order"),
+    consent_confirmed: hasConsent,
+    is_published: isPublished,
   }, value(data, "id") || undefined);
   await reloadData("Resultado salvo.");
 }
@@ -176,11 +198,16 @@ async function submitTestimonial(form: HTMLFormElement): Promise<void> {
   const hasConsent = checked(form, "consent_confirmed");
   if (isPublished && !hasConsent) throw new Error("Confirme a autorização antes de publicar o depoimento.");
   await upsertRecord("cq_testimonials", state.membership.siteId, {
-    client_display_name: value(data, "client_display_name"), procedure_id: value(data, "procedure_id") || null,
-    photo_url: value(data, "photo_url"), testimonial_text: value(data, "testimonial_text"),
-    rating: Math.min(5, Math.max(1, numberValue(data, "rating"))), source_name: value(data, "source_name"),
-    source_url: value(data, "source_url"), sort_order: numberValue(data, "sort_order"),
-    consent_confirmed: hasConsent, is_published: isPublished,
+    client_display_name: value(data, "client_display_name"),
+    procedure_id: value(data, "procedure_id") || null,
+    photo_url: value(data, "photo_url"),
+    testimonial_text: value(data, "testimonial_text"),
+    rating: Math.min(5, Math.max(1, numberValue(data, "rating"))),
+    source_name: value(data, "source_name"),
+    source_url: value(data, "source_url"),
+    sort_order: numberValue(data, "sort_order"),
+    consent_confirmed: hasConsent,
+    is_published: isPublished,
   }, value(data, "id") || undefined);
   await reloadData("Depoimento salvo.");
 }
@@ -189,8 +216,10 @@ async function submitFaq(form: HTMLFormElement): Promise<void> {
   if (!state) return;
   const data = new FormData(form);
   await upsertRecord("cq_faq_items", state.membership.siteId, {
-    question: value(data, "question"), answer: value(data, "answer"),
-    sort_order: numberValue(data, "sort_order"), is_published: checked(form, "is_published"),
+    question: value(data, "question"),
+    answer: value(data, "answer"),
+    sort_order: numberValue(data, "sort_order"),
+    is_published: checked(form, "is_published"),
   }, value(data, "id") || undefined);
   await reloadData("Pergunta salva.");
 }
@@ -199,9 +228,12 @@ async function submitTracking(form: HTMLFormElement): Promise<void> {
   if (!state) return;
   const data = new FormData(form);
   await saveTracking(state.membership.siteId, {
-    meta_pixel_id: value(data, "meta_pixel_id"), meta_browser_enabled: checked(form, "meta_browser_enabled"),
-    meta_server_enabled: checked(form, "meta_server_enabled"), ga4_measurement_id: value(data, "ga4_measurement_id"),
-    ga4_browser_enabled: checked(form, "ga4_browser_enabled"), ga4_server_enabled: checked(form, "ga4_server_enabled"),
+    meta_pixel_id: value(data, "meta_pixel_id"),
+    meta_browser_enabled: checked(form, "meta_browser_enabled"),
+    meta_server_enabled: checked(form, "meta_server_enabled"),
+    ga4_measurement_id: value(data, "ga4_measurement_id"),
+    ga4_browser_enabled: checked(form, "ga4_browser_enabled"),
+    ga4_server_enabled: checked(form, "ga4_server_enabled"),
     google_ads_conversion_id: value(data, "google_ads_conversion_id"),
     google_ads_conversion_label: value(data, "google_ads_conversion_label"),
     google_ads_browser_enabled: checked(form, "google_ads_browser_enabled"),
@@ -213,8 +245,15 @@ async function submitTracking(form: HTMLFormElement): Promise<void> {
 async function submitTrackingSecrets(form: HTMLFormElement): Promise<void> {
   if (!state) return;
   const data = new FormData(form);
-  const keys = ["metaAccessToken", "metaApiVersion", "ga4ApiSecret", "googleDataManagerEndpoint", "googleOAuthAccessToken", "googleOperatingAccountId", "googleLoginAccountId", "googleConversionActionId"];
-  const secrets = Object.fromEntries(keys.map((key) => [key, value(data, key)]).filter(([, current]) => current.length > 0));
+  const keys = [
+    "metaAccessToken", "metaApiVersion", "ga4ApiSecret", "googleDataManagerEndpoint",
+    "googleOAuthAccessToken", "googleOperatingAccountId", "googleLoginAccountId", "googleConversionActionId",
+  ];
+  const secrets: Record<string, string> = {};
+  for (const key of keys) {
+    const current = value(data, key);
+    if (current) secrets[key] = current;
+  }
   if (Object.keys(secrets).length === 0) throw new Error("Informe ao menos uma credencial.");
   await saveTrackingSecrets(state.membership.siteId, secrets);
   setMessage("Credenciais criptografadas e salvas.");
@@ -225,7 +264,12 @@ async function submitMedia(form: HTMLFormElement): Promise<void> {
   const data = new FormData(form);
   const file = data.get("file");
   if (!(file instanceof File) || file.size === 0) throw new Error("Escolha uma imagem.");
-  await uploadMedia(state.membership.siteId, file, value(data, "category") || "general", value(data, "alt_text"));
+  await uploadMedia(
+    state.membership.siteId,
+    file,
+    value(data, "category") || "general",
+    value(data, "alt_text"),
+  );
   await reloadData("Imagem enviada.");
 }
 
@@ -251,7 +295,10 @@ root.addEventListener("submit", (event) => {
   void handleSubmit(form).catch((error: unknown) => {
     const message = error instanceof Error ? error.message : "Erro inesperado.";
     if (state) setMessage(message, true);
-    else { loginMessage = message; render(); }
+    else {
+      loginMessage = message;
+      render();
+    }
   });
 });
 
@@ -261,12 +308,14 @@ root.addEventListener("change", (event) => {
   const file = inputElement.files?.[0];
   if (!file) return;
   const targetName = inputElement.dataset.uploadTarget;
-  void uploadMedia(state.membership.siteId, file, targetName, "").then((url) => {
+  void uploadMedia(state.membership.siteId, file, targetName, "").then((uploadedUrl) => {
     const form = inputElement.closest("form");
     const target = form?.querySelector<HTMLInputElement>(`[name="${targetName}"]`);
-    if (target) target.value = url;
+    if (target) target.value = uploadedUrl;
     setMessage("Imagem enviada. Salve o formulário para aplicar a alteração.");
-  }).catch((error: unknown) => setMessage(error instanceof Error ? error.message : "Falha no upload.", true));
+  }).catch((error: unknown) => {
+    setMessage(error instanceof Error ? error.message : "Falha no upload.", true);
+  });
 });
 
 root.addEventListener("click", (event) => {
@@ -283,7 +332,11 @@ root.addEventListener("click", (event) => {
   }
 
   if (target.closest("[data-sign-out]")) {
-    void signOut().then(() => { state = null; loginMessage = ""; render(); });
+    void signOut().then(() => {
+      state = null;
+      loginMessage = "";
+      render();
+    });
     return;
   }
 
@@ -302,19 +355,28 @@ root.addEventListener("click", (event) => {
 
   const deleteButton = target.closest<HTMLElement>("[data-delete-id]");
   if (deleteButton && state) {
-    const type = deleteButton.dataset.deleteType ?? "";
-    const table = editableTable[type];
+    const table = editableTable[deleteButton.dataset.deleteType ?? ""];
     const id = deleteButton.dataset.deleteId;
     if (!table || !id || !window.confirm("Excluir este item?")) return;
     void deleteRecord(table, state.membership.siteId, id)
       .then(() => reloadData("Item excluído."))
-      .catch((error: unknown) => setMessage(error instanceof Error ? error.message : "Falha ao excluir.", true));
+      .catch((error: unknown) => {
+        setMessage(error instanceof Error ? error.message : "Falha ao excluir.", true);
+      });
   }
 });
 
 supabase.auth.onAuthStateChange((event, session) => {
-  if (event === "SIGNED_IN" && session && !state) void initializeAuthenticated().catch((error: unknown) => { loginMessage = error instanceof Error ? error.message : "Falha ao carregar painel."; render(); });
-  if (event === "SIGNED_OUT") { state = null; render(); }
+  if (event === "SIGNED_IN" && session && !state) {
+    void initializeAuthenticated().catch((error: unknown) => {
+      loginMessage = error instanceof Error ? error.message : "Falha ao carregar painel.";
+      render();
+    });
+  }
+  if (event === "SIGNED_OUT") {
+    state = null;
+    render();
+  }
 });
 
 void initialize().catch((error: unknown) => {
