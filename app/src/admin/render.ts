@@ -32,14 +32,14 @@ const input = (
   value: unknown,
   options: { type?: string; full?: boolean; required?: boolean; placeholder?: string; autocomplete?: string; minlength?: number; help?: string } = {},
 ): string => `
-  <div class="field${options.full ? " field-full" : ""}">
+  <div class="field${options.full ? " field-full" : ""}" data-field-name="${escapeHtml(name)}">
     <label for="${name}">${escapeHtml(label)}</label>
     <input id="${name}" name="${name}" type="${options.type ?? "text"}" value="${escapeHtml(value)}"${options.required ? " required" : ""}${options.placeholder ? ` placeholder="${escapeHtml(options.placeholder)}"` : ""}${options.autocomplete ? ` autocomplete="${escapeHtml(options.autocomplete)}"` : ""}${options.minlength ? ` minlength="${options.minlength}"` : ""}>
     ${options.help ? `<small class="field-help">${escapeHtml(options.help)}</small>` : ""}
   </div>`;
 
 const textarea = (name: string, label: string, value: unknown, full = true, help = ""): string => `
-  <div class="field${full ? " field-full" : ""}">
+  <div class="field${full ? " field-full" : ""}" data-field-name="${escapeHtml(name)}">
     <label for="${name}">${escapeHtml(label)}</label>
     <textarea id="${name}" name="${name}">${escapeHtml(value)}</textarea>
     ${help ? `<small class="field-help">${escapeHtml(help)}</small>` : ""}
@@ -48,11 +48,38 @@ const textarea = (name: string, label: string, value: unknown, full = true, help
 const checkbox = (name: string, label: string, checked: boolean): string => `
   <label class="checkbox-field"><input name="${name}" type="checkbox"${checked ? " checked" : ""}> ${escapeHtml(label)}</label>`;
 
+const selectInput = (
+  name: string,
+  label: string,
+  currentValue: unknown,
+  options: Array<{ value: string; label: string }>,
+  help = "",
+): string => `
+  <div class="field" data-field-name="${escapeHtml(name)}">
+    <label for="${name}">${escapeHtml(label)}</label>
+    <select id="${name}" name="${name}">
+      <option value="">Nenhum</option>
+      ${options.map((option) => `<option value="${escapeHtml(option.value)}"${String(currentValue ?? "") === option.value ? " selected" : ""}>${escapeHtml(option.label)}</option>`).join("")}
+    </select>
+    ${help ? `<small class="field-help">${escapeHtml(help)}</small>` : ""}
+  </div>`;
+
+const uploadFeedback = (): string => `
+  <div class="upload-feedback" data-upload-feedback hidden>
+    <img class="upload-preview" data-upload-preview alt="Prévia da imagem preparada" hidden>
+    <div class="upload-feedback-copy">
+      <strong data-upload-status>Preparando imagem…</strong>
+      <span data-upload-meta></span>
+      <progress data-upload-progress max="5" value="0"></progress>
+    </div>
+  </div>`;
+
 const uploadField = (target: string, label: string): string => `
-  <div class="field field-full upload-field">
+  <div class="field field-full upload-field" data-upload-field>
     <label for="upload-${target}">${escapeHtml(label)}</label>
-    <input id="upload-${target}" type="file" accept="image/*" data-upload-target="${target}">
-    <small class="field-help">JPG, PNG ou WebP, com no máximo 5 MB.</small>
+    <input id="upload-${target}" type="file" accept="image/jpeg,image/png,image/webp,image/avif,image/heic,image/heif,.heic,.heif" data-upload-target="${target}">
+    <small class="field-help">JPG, PNG, WebP, AVIF, HEIC ou HEIF. O painel converte, redimensiona e comprime automaticamente.</small>
+    ${uploadFeedback()}
   </div>`;
 
 const formGroup = (title: string, description: string, fields: string): string => `
@@ -120,15 +147,19 @@ function contentForms(data: AdminData): string {
 }
 
 function procedureForm(item?: ProcedureRecord): string {
-  return `<section class="panel"><div class="panel-heading"><div><h2>${item ? "Editar procedimento" : "Novo procedimento"}</h2><p>O cartão se reorganiza automaticamente quando campos opcionais ficam vazios.</p></div>${item ? '<button class="button button-outline button-small" type="button" data-cancel-edit>Cancelar</button>' : ""}</div><form class="form-grid" data-form="procedure"><input type="hidden" name="id" value="${escapeHtml(item?.id)}">${input("name", "Nome", item?.name, { required: true })}${input("slug", "Identificador", item?.slug, { required: true })}${input("category", "Categoria", item?.category)}${input("image_url", "URL atual da imagem", item?.image_url, { full: true })}${uploadField("image_url", "Enviar imagem")}${textarea("short_description", "Descrição curta", item?.short_description)}${textarea("full_description", "Descrição completa", item?.full_description)}${input("duration", "Duração", item?.duration)}${input("session_estimate", "Estimativa de sessões", item?.session_estimate)}${textarea("contraindications", "Contraindicações", item?.contraindications)}${textarea("whatsapp_message", "Mensagem do WhatsApp", item?.whatsapp_message)}${input("sort_order", "Ordem", item?.sort_order ?? 0, { type: "number" })}<div class="field">${checkbox("is_featured", "Destaque", item?.is_featured ?? false)}${checkbox("is_published", "Publicado", item?.is_published ?? true)}</div><div class="form-actions sticky-form-actions"><button class="button button-primary" type="submit">Salvar procedimento</button></div></form></section>`;
+  return `<section class="panel"><div class="panel-heading"><div><h2>${item ? "Editar procedimento" : "Novo procedimento"}</h2><p>O identificador é gerado pelo nome quando o campo fica vazio.</p></div>${item ? '<button class="button button-outline button-small" type="button" data-cancel-edit>Cancelar</button>' : ""}</div><form class="form-grid" data-form="procedure"><input type="hidden" name="id" value="${escapeHtml(item?.id)}">${input("name", "Nome", item?.name, { required: true })}${input("slug", "Identificador", item?.slug, { help: "Opcional. Exemplo: limpeza-de-pele. Deve ser único." })}${input("category", "Categoria", item?.category)}${input("image_url", "URL atual da imagem", item?.image_url, { full: true })}${uploadField("image_url", "Enviar imagem")}${textarea("short_description", "Descrição curta", item?.short_description)}${textarea("full_description", "Descrição completa", item?.full_description)}${input("duration", "Duração", item?.duration)}${input("session_estimate", "Estimativa de sessões", item?.session_estimate)}${textarea("contraindications", "Contraindicações", item?.contraindications)}${textarea("whatsapp_message", "Mensagem do WhatsApp", item?.whatsapp_message)}${input("sort_order", "Ordem", item?.sort_order ?? 0, { type: "number" })}<div class="field">${checkbox("is_featured", "Destaque", item?.is_featured ?? false)}${checkbox("is_published", "Publicado", item?.is_published ?? true)}</div><div class="form-actions sticky-form-actions"><button class="button button-primary" type="submit">Salvar procedimento</button></div></form></section>`;
 }
 
-function resultForm(item?: ResultRecord): string {
-  return `<section class="panel"><div class="panel-heading"><div><h2>${item ? "Editar resultado" : "Novo antes e depois"}</h2><p>As duas fotos são obrigatórias. A publicação exige autorização confirmada.</p></div>${item ? '<button class="button button-outline button-small" type="button" data-cancel-edit>Cancelar</button>' : ""}</div><form class="form-grid" data-form="result"><input type="hidden" name="id" value="${escapeHtml(item?.id)}">${input("title", "Título", item?.title, { full: true, required: true })}${textarea("summary", "Descrição do resultado", item?.summary)}${input("procedure_id", "ID do procedimento", item?.procedure_id)}${input("body_area", "Região tratada", item?.body_area)}${input("before_image_url", "URL da foto antes", item?.before_image_url, { full: true, required: true })}${uploadField("before_image_url", "Enviar foto antes")}${input("after_image_url", "URL da foto depois", item?.after_image_url, { full: true, required: true })}${uploadField("after_image_url", "Enviar foto depois")}${input("sessions", "Quantidade de sessões", item?.sessions)}${input("treatment_period", "Período", item?.treatment_period)}${textarea("testimonial_text", "Relato associado", item?.testimonial_text)}${input("client_display_name", "Nome ou iniciais", item?.client_display_name)}${input("sort_order", "Ordem", item?.sort_order ?? 0, { type: "number" })}<div class="field publication-checks">${checkbox("consent_confirmed", "Autorização confirmada", item?.consent_confirmed ?? false)}${checkbox("is_published", "Publicado", item?.is_published ?? false)}</div><div class="form-actions sticky-form-actions"><button class="button button-primary" type="submit">Salvar resultado</button></div></form></section>`;
+function procedureOptions(procedures: ProcedureRecord[]): Array<{ value: string; label: string }> {
+  return procedures.map((procedure) => ({ value: procedure.id, label: procedure.name }));
 }
 
-function testimonialForm(item?: TestimonialRecord): string {
-  return `<section class="panel"><div class="panel-heading"><div><h2>${item ? "Editar depoimento" : "Novo depoimento"}</h2><p>Use somente depoimentos reais com autorização para publicação.</p></div>${item ? '<button class="button button-outline button-small" type="button" data-cancel-edit>Cancelar</button>' : ""}</div><form class="form-grid" data-form="testimonial"><input type="hidden" name="id" value="${escapeHtml(item?.id)}">${input("client_display_name", "Nome ou iniciais", item?.client_display_name, { required: true })}${input("procedure_id", "ID do procedimento", item?.procedure_id)}${input("photo_url", "URL atual da foto", item?.photo_url, { full: true })}${uploadField("photo_url", "Enviar foto")}${textarea("testimonial_text", "Depoimento", item?.testimonial_text)}${input("rating", "Estrelas", item?.rating ?? 5, { type: "number" })}${input("source_name", "Origem", item?.source_name)}${input("source_url", "Link original", item?.source_url, { full: true })}${input("sort_order", "Ordem", item?.sort_order ?? 0, { type: "number" })}<div class="field publication-checks">${checkbox("consent_confirmed", "Autorização confirmada", item?.consent_confirmed ?? false)}${checkbox("is_published", "Publicado", item?.is_published ?? false)}</div><div class="form-actions sticky-form-actions"><button class="button button-primary" type="submit">Salvar depoimento</button></div></form></section>`;
+function resultForm(procedures: ProcedureRecord[], item?: ResultRecord): string {
+  return `<section class="panel"><div class="panel-heading"><div><h2>${item ? "Editar resultado" : "Novo antes e depois"}</h2><p>As duas fotos são obrigatórias. A publicação exige autorização confirmada.</p></div>${item ? '<button class="button button-outline button-small" type="button" data-cancel-edit>Cancelar</button>' : ""}</div><form class="form-grid" data-form="result"><input type="hidden" name="id" value="${escapeHtml(item?.id)}">${input("title", "Título", item?.title, { full: true, required: true })}${textarea("summary", "Descrição do resultado", item?.summary)}${selectInput("procedure_id", "Procedimento relacionado", item?.procedure_id, procedureOptions(procedures), "Selecione pelo nome; o painel salva o identificador correto.")}${input("body_area", "Região tratada", item?.body_area)}${input("before_image_url", "URL da foto antes", item?.before_image_url, { full: true, required: true })}${uploadField("before_image_url", "Enviar foto antes")}${input("after_image_url", "URL da foto depois", item?.after_image_url, { full: true, required: true })}${uploadField("after_image_url", "Enviar foto depois")}${input("sessions", "Quantidade de sessões", item?.sessions)}${input("treatment_period", "Período", item?.treatment_period)}${textarea("testimonial_text", "Relato associado", item?.testimonial_text)}${input("client_display_name", "Nome ou iniciais", item?.client_display_name)}${input("sort_order", "Ordem", item?.sort_order ?? 0, { type: "number" })}<div class="field publication-checks">${checkbox("consent_confirmed", "Autorização confirmada", item?.consent_confirmed ?? false)}${checkbox("is_published", "Publicado", item?.is_published ?? false)}</div><div class="form-actions sticky-form-actions"><button class="button button-primary" type="submit">Salvar resultado</button></div></form></section>`;
+}
+
+function testimonialForm(procedures: ProcedureRecord[], item?: TestimonialRecord): string {
+  return `<section class="panel"><div class="panel-heading"><div><h2>${item ? "Editar depoimento" : "Novo depoimento"}</h2><p>Use somente depoimentos reais com autorização para publicação.</p></div>${item ? '<button class="button button-outline button-small" type="button" data-cancel-edit>Cancelar</button>' : ""}</div><form class="form-grid" data-form="testimonial"><input type="hidden" name="id" value="${escapeHtml(item?.id)}">${input("client_display_name", "Nome ou iniciais", item?.client_display_name, { required: true })}${selectInput("procedure_id", "Procedimento relacionado", item?.procedure_id, procedureOptions(procedures), "Opcional. Escolha pelo nome.")}${input("photo_url", "URL atual da foto", item?.photo_url, { full: true })}${uploadField("photo_url", "Enviar foto")}${textarea("testimonial_text", "Depoimento", item?.testimonial_text)}${input("rating", "Estrelas", item?.rating ?? 5, { type: "number" })}${input("source_name", "Origem", item?.source_name)}${input("source_url", "Link original", item?.source_url, { full: true })}${input("sort_order", "Ordem", item?.sort_order ?? 0, { type: "number" })}<div class="field publication-checks">${checkbox("consent_confirmed", "Autorização confirmada", item?.consent_confirmed ?? false)}${checkbox("is_published", "Publicado", item?.is_published ?? false)}</div><div class="form-actions sticky-form-actions"><button class="button button-primary" type="submit">Salvar depoimento</button></div></form></section>`;
 }
 
 function faqForm(item?: FaqRecord): string {
@@ -151,7 +182,7 @@ function trackingForm(data: AdminData): string {
 }
 
 function mediaView(data: AdminData): string {
-  return `<section class="panel"><div class="panel-heading"><div><h2>Enviar imagem</h2><p>As imagens ficam organizadas por site e categoria no Supabase Storage.</p></div></div><form class="form-grid" data-form="media"><div class="field field-full"><label for="media-file">Arquivo</label><input id="media-file" name="file" type="file" accept="image/*" required><small class="field-help">JPG, PNG ou WebP, com no máximo 5 MB.</small></div>${input("category", "Categoria", "general", { help: "Exemplos: hero, procedimentos, resultados ou equipe." })}${input("alt_text", "Descrição da imagem", "", { help: "Ajuda acessibilidade e mecanismos de busca." })}<div class="form-actions sticky-form-actions"><button class="button button-primary" type="submit">Enviar imagem</button></div></form></section><section class="panel"><div class="panel-heading"><h2>Biblioteca</h2><span>${data.media.length} arquivo(s)</span></div>${data.media.length ? `<div class="media-grid">${data.media.map((item) => `<article class="media-card"><img src="${escapeHtml(item.public_url)}" alt="${escapeHtml(item.alt_text)}"><div><strong>${escapeHtml(item.file_name)}</strong><span>${escapeHtml(item.public_url)}</span></div></article>`).join("")}</div>` : '<div class="empty-state"><strong>Nenhuma imagem enviada.</strong><p>Envie a primeira imagem pelo formulário acima.</p></div>'}</section>`;
+  return `<section class="panel"><div class="panel-heading"><div><h2>Enviar imagem</h2><p>A imagem é preparada antes do envio e registrada na biblioteca apenas após o upload terminar.</p></div></div><form class="form-grid" data-form="media"><div class="field field-full upload-field" data-upload-field><label for="media-file">Arquivo</label><input id="media-file" name="file" type="file" accept="image/jpeg,image/png,image/webp,image/avif,image/heic,image/heif,.heic,.heif" required><small class="field-help">JPG, PNG, WebP, AVIF, HEIC ou HEIF. Originais de até 30 MB; o arquivo final fica abaixo de 5 MB.</small>${uploadFeedback()}</div>${input("category", "Categoria", "general", { help: "Exemplos: hero, procedimentos, resultados ou equipe." })}${input("alt_text", "Descrição da imagem", "", { help: "Ajuda acessibilidade e mecanismos de busca." })}<div class="form-actions sticky-form-actions"><button class="button button-primary" type="submit">Enviar imagem</button></div></form></section><section class="panel"><div class="panel-heading"><h2>Biblioteca</h2><span>${data.media.length} arquivo(s)</span></div>${data.media.length ? `<div class="media-grid">${data.media.map((item) => `<article class="media-card"><img src="${escapeHtml(item.public_url)}" alt="${escapeHtml(item.alt_text)}"><div><strong>${escapeHtml(item.file_name)}</strong><span>${escapeHtml(item.public_url)}</span></div></article>`).join("")}</div>` : '<div class="empty-state"><strong>Nenhuma imagem enviada.</strong><p>Envie a primeira imagem pelo formulário acima.</p></div>'}</section>`;
 }
 
 function tabContent(state: AdminViewState): string {
@@ -160,13 +191,13 @@ function tabContent(state: AdminViewState): string {
   if (state.tab === "settings") return settingsForm(data);
   if (state.tab === "content") return contentForms(data);
   if (state.tab === "procedures") return procedureForm(data.procedures.find((item) => item.id === state.editingId)) + `<section class="panel"><div class="panel-heading"><h2>Procedimentos cadastrados</h2><span>${data.procedures.length} item(ns)</span></div>${dataRows(data.procedures, "procedure")}</section>`;
-  if (state.tab === "results") return resultForm(data.results.find((item) => item.id === state.editingId)) + `<section class="panel"><div class="panel-heading"><h2>Resultados cadastrados</h2><span>${data.results.length} item(ns)</span></div>${dataRows(data.results, "result")}</section>`;
-  if (state.tab === "testimonials") return testimonialForm(data.testimonials.find((item) => item.id === state.editingId)) + `<section class="panel"><div class="panel-heading"><h2>Depoimentos cadastrados</h2><span>${data.testimonials.length} item(ns)</span></div>${dataRows(data.testimonials, "testimonial")}</section>`;
+  if (state.tab === "results") return resultForm(data.procedures, data.results.find((item) => item.id === state.editingId)) + `<section class="panel"><div class="panel-heading"><h2>Resultados cadastrados</h2><span>${data.results.length} item(ns)</span></div>${dataRows(data.results, "result")}</section>`;
+  if (state.tab === "testimonials") return testimonialForm(data.procedures, data.testimonials.find((item) => item.id === state.editingId)) + `<section class="panel"><div class="panel-heading"><h2>Depoimentos cadastrados</h2><span>${data.testimonials.length} item(ns)</span></div>${dataRows(data.testimonials, "testimonial")}</section>`;
   if (state.tab === "faq") return faqForm(data.faq.find((item) => item.id === state.editingId)) + `<section class="panel"><div class="panel-heading"><h2>Perguntas cadastradas</h2><span>${data.faq.length} item(ns)</span></div>${dataRows(data.faq, "faq")}</section>`;
   if (state.tab === "tracking") return trackingForm(data);
   return mediaView(data);
 }
 
 export function renderAdmin(state: AdminViewState): string {
-  return `<div class="admin-layout"><aside class="admin-sidebar"><div class="admin-logo">CQ · Painel</div><nav class="admin-nav" aria-label="Seções do painel">${navigation(state.tab)}</nav><div class="admin-sidebar-footer"><a class="button button-light button-small" href="/" target="_blank" rel="noopener">Abrir site</a><button class="button button-outline button-small" type="button" data-sign-out>Sair</button></div></aside><main class="admin-main"><header class="admin-header"><div><p class="eyebrow">Painel administrativo</p><h1>${escapeHtml(state.membership.site.name)}</h1><p>Perfil: ${escapeHtml(state.membership.role)}</p></div></header>${state.message ? `<div class="status-message${state.isError ? " is-error" : ""}">${escapeHtml(state.message)}</div>` : ""}${tabContent(state)}</main></div>`;
+  return `<div class="admin-layout"><aside class="admin-sidebar"><div class="admin-logo">CQ · Painel</div><nav class="admin-nav" aria-label="Seções do painel">${navigation(state.tab)}</nav><div class="admin-sidebar-footer"><a class="button button-light button-small" href="/" target="_blank" rel="noopener">Abrir site</a><button class="button button-outline button-small" type="button" data-sign-out>Sair</button></div></aside><main class="admin-main"><header class="admin-header"><div><p class="eyebrow">Painel administrativo</p><h1>${escapeHtml(state.membership.site.name)}</h1><p>Perfil: ${escapeHtml(state.membership.role)}</p></div></header><div class="status-message${state.isError ? " is-error" : ""}" data-admin-status${state.message ? "" : " hidden"}>${escapeHtml(state.message)}</div>${tabContent(state)}</main></div>`;
 }

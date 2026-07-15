@@ -83,4 +83,32 @@ describe("architecture rules", () => {
     const controller = source["src/admin/auth-controller.ts"] ?? "";
     expect(controller.match(/onAuthStateChange/g)?.length ?? 0).toBe(1);
   });
+
+  it("keeps Supabase storage access inside the repository", () => {
+    for (const [path, content] of Object.entries(source)) {
+      if (path === "src/admin/repository.ts") continue;
+      expect(content, path).not.toMatch(/supabase\.storage\b/);
+    }
+  });
+
+  it("keeps image preparation inside the media service", () => {
+    const main = source["src/admin/main.ts"] ?? "";
+    const repository = source["src/admin/repository.ts"] ?? "";
+    expect(main).toMatch(/from\s+["']\.\/media-service["']/);
+    expect(repository).not.toMatch(/createImageBitmap|canvas\.toBlob|document\.createElement\(["']canvas/);
+  });
+
+  it("does not throw raw Supabase errors from the repository", () => {
+    const repository = source["src/admin/repository.ts"] ?? "";
+    expect(repository).not.toMatch(/throw\s+error\s*;/);
+  });
+
+  it("does not discard admin errors behind a generic message", () => {
+    const adminSource = Object.entries(source)
+      .filter(([path]) => path.startsWith("src/admin/"))
+      .map(([, content]) => content)
+      .join("\n");
+    expect(adminSource).not.toMatch(/Erro inesperado/i);
+    expect(adminSource).toMatch(/normalizeAdminError/);
+  });
 });
