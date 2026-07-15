@@ -1,4 +1,4 @@
-import type { AdminData, JsonObject } from "../lib/types";
+import type { AdminData, JsonObject, MediaRecord, MediaVariantRecord } from "../lib/types";
 import {
   authErrorMessage,
   consumeAuthUrlNotice,
@@ -11,8 +11,21 @@ import {
   updatePassword,
 } from "./auth-controller";
 import { AdminError, formatAdminError, normalizeAdminError, reportAdminError } from "./errors";
-import { formatByteSize, uploadMedia, type MediaUploadProgress, type MediaUploadResult } from "./media-service";
-import { renderAdmin, renderLogin, type AdminTab, type AdminViewState, type LoginViewState } from "./render";
+import { openMediaEditor } from "./media-editor";
+import { prepareMediaSource, type MediaTransform } from "./media-processor";
+import { getMediaSlot, mediaSlots, type MediaSlotKey } from "./media-schema";
+import {
+  deleteMediaPermanently,
+  downloadMediaOriginal,
+  formatByteSize,
+  reframeMedia,
+  restoreMediaFromTrash,
+  sendMediaToTrash,
+  storeMedia,
+  type MediaUploadProgress,
+  type MediaUploadResult,
+} from "./media-service";
+import { renderAdmin, renderLogin, type AdminTab, type AdminViewState, type LoginViewState, type MediaFilter } from "./render";
 import {
   deleteRecord,
   loadAdminData,
@@ -125,7 +138,7 @@ function setFormBusy(form: HTMLFormElement, busy: boolean): void {
   if (!submitButton) return;
   if (busy) {
     submitButton.dataset.originalLabel = submitButton.textContent ?? "Salvar";
-    submitButton.textContent = form.dataset.form === "media" ? "Preparando imagem…" : "Salvando…";
+    submitButton.textContent = form.dataset.form === "media" ? "Preparando mídia…" : "Salvando…";
     submitButton.disabled = true;
     form.setAttribute("aria-busy", "true");
   } else {
@@ -146,7 +159,11 @@ function normalizeOperationError(context: string, error: unknown): AdminError {
     faq: { code: "CMS_FAQ_SAVE_FAILED", message: "Não foi possível salvar a pergunta." },
     tracking: { code: "CMS_TRACKING_SAVE_FAILED", message: "Não foi possível salvar o rastreamento." },
     "tracking-secrets": { code: "CMS_TRACKING_SECRET_FAILED", message: "Não foi possível salvar as credenciais." },
-    media: { code: "MEDIA_UPLOAD_FAILED", message: "Não foi possível enviar a imagem." },
+    media: { code: "MEDIA_UPLOAD_FAILED", message: "Não foi possível enviar a mídia." },
+    "media-reframe": { code: "MEDIA_REFRAME_FAILED", message: "Não foi possível aplicar o novo enquadramento." },
+    "media-trash": { code: "MEDIA_TRASH_FAILED", message: "Não foi possível enviar a mídia para a lixeira." },
+    "media-restore": { code: "MEDIA_RESTORE_FAILED", message: "Não foi possível restaurar a mídia." },
+    "media-delete": { code: "MEDIA_DELETE_FAILED", message: "Não foi possível excluir a mídia definitivamente." },
     delete: { code: "CMS_DELETE_FAILED", message: "Não foi possível excluir o item." },
     initialization: { code: "CMS_INITIALIZATION_FAILED", message: "Não foi possível carregar o painel." },
   };
@@ -179,33 +196,33 @@ function uploadElements(inputElement: HTMLInputElement): {
   };
 }
 
-function updateUploadProgress(inputElement: HTMLInputElement, update: MediaUploadProgress): void {
+function setUploadStatus(inputElement: HTMLInputElement, message: string, percent: number): void {
   const elements = uploadElements(inputElement);
-  const stageValue: Record<MediaUploadProgress["stage"], number> = {
-    validating: 1,
-    preparing: 2,
-    uploading: 3,
-    registering: 4,
-    complete: 5,
-  };
   if (elements.feedback) elements.feedback.hidden = false;
-  if (elements.status) elements.status.textContent = update.message;
-  if (elements.progress) elements.progress.value = stageValue[update.stage];
+  if (elements.status) elements.status.textContent = message;
+  if (elements.progress) {
+    elements.progress.max = 100;
+    elements.progress.value = Math.max(0, Math.min(100, percent));
+  }
+}
+
+function updateUploadProgress(inputElement: HTMLInputElement, update: MediaUploadProgress): void {
+  const percent = update.total > 0 ? Math.round(update.completed / update.total * 100) : 0;
+  setUploadStatus(inputElement, update.message, percent);
 }
 
 function showUploadResult(inputElement: HTMLInputElement, result: MediaUploadResult): void {
   const elements = uploadElements(inputElement);
   if (elements.feedback) elements.feedback.hidden = false;
   if (elements.preview) {
-    elements.preview.src = result.publicUrl;
+    elements.preview.src = result.primaryUrl;
     elements.preview.hidden = false;
   }
-  if (elements.status) elements.status.textContent = "Imagem pronta e enviada.";
+  if (elements.status) elements.status.textContent = "Mídia pronta e enviada.";
   if (elements.meta) {
-    const reduction = result.originalBytes > 0 ? Math.max(0, Math.round((1 - result.uploadedBytes / result.originalBytes) * 100)) : 0;
-    elements.meta.textContent = `${result.width} × ${result.height}px · ${formatByteSize(result.uploadedBytes)}${result.converted ? ` · redução de ${reduction}%` : ""}`;
+    elements.meta.textContent = `${result.primaryVariant.width} × ${result.primaryVariant.height}px · ${formatByteSize(result.primaryVariant.size_bytes)} · original preservado`;
   }
-  if (elements.progress) elements.progress.value = 5;
+  if (elements.progress) elements.progress.value = 100;
 }
 
 function showUploadError(inputElement: HTMLInputElement, error: AdminError): void {
@@ -232,7 +249,7 @@ function initializeAuthenticatedOnce(): Promise<void> {
   authenticatedInitialization = (async () => {
     const membership: Membership = await loadMembership();
     const data: AdminData = await loadAdminData(membership);
-    state = { membership, data, tab: "dashboard", editingId: null, message: "", isError: false };
+    state = { membership, data, tab: "dashboard", editingId: null, mediaFilter: "active", message: "", isError: false };
     render();
   })().finally(() => {
     authenticatedInitialization = null;
@@ -320,6 +337,7 @@ async function submitHero(form: HTMLFormElement): Promise<void> {
     title: value(data, "title"),
     subtitle: value(data, "subtitle"),
     image_url: value(data, "image_url"),
+    mobile_image_url: value(data, "mobile_image_url"),
     primary_cta: value(data, "primary_cta"),
     secondary_cta: value(data, "secondary_cta"),
   };
@@ -463,21 +481,70 @@ async function submitTrackingSecrets(form: HTMLFormElement): Promise<void> {
   setMessage("Credenciais criptografadas e salvas.");
 }
 
+function initialTransform(media: MediaRecord, slotKey: string): MediaTransform | undefined {
+  const variant = media.variants.find((item) => item.slot_key === slotKey)
+    ?? media.variants.find((item) => item.slot_key.startsWith("favicon_"))
+    ?? media.variants[0];
+  const crop = variant?.crop;
+  if (!crop || typeof crop !== "object") return undefined;
+  const zoom = typeof crop.zoom === "number" ? crop.zoom : 1;
+  const offsetX = typeof crop.offsetX === "number" ? crop.offsetX : 0;
+  const offsetY = typeof crop.offsetY === "number" ? crop.offsetY : 0;
+  const rawRotation = typeof crop.rotation === "number" ? crop.rotation : 0;
+  const rotation: MediaTransform["rotation"] = rawRotation === 90 || rawRotation === 180 || rawRotation === 270 ? rawRotation : 0;
+  const fit = crop.fit === "contain" ? "contain" : "cover";
+  return { zoom, offsetX, offsetY, rotation, fit };
+}
+
+function slotForMedia(media: MediaRecord): MediaSlotKey {
+  if (media.media_kind === "logo") return "logo_header";
+  if (media.media_kind === "favicon") return "favicon";
+  const slotKey = media.variants.find((variant) => variant.slot_key in mediaSlots)?.slot_key;
+  return slotKey && slotKey in mediaSlots ? slotKey as MediaSlotKey : "general";
+}
+
+async function processMedia(
+  inputElement: HTMLInputElement,
+  file: File,
+  slotKey: string,
+  altText: string,
+): Promise<MediaUploadResult | null> {
+  if (!state) return null;
+  const slot = getMediaSlot(slotKey);
+  setUploadStatus(inputElement, "Validando e abrindo o arquivo…", 5);
+  const source = await prepareMediaSource(file, slot);
+  try {
+    setUploadStatus(inputElement, "Aguardando confirmação do enquadramento…", 10);
+    const transform = await openMediaEditor(source, slot);
+    if (!transform) {
+      setUploadStatus(inputElement, "Envio cancelado.", 0);
+      return null;
+    }
+    const result = await storeMedia(
+      state.membership.siteId,
+      source,
+      slot,
+      transform,
+      altText,
+      (progress) => updateUploadProgress(inputElement, progress),
+    );
+    state.data.media.unshift(result.media);
+    showUploadResult(inputElement, result);
+    return result;
+  } finally {
+    source.release();
+  }
+}
+
 async function submitMedia(form: HTMLFormElement): Promise<void> {
   if (!state) return;
   const data = new FormData(form);
   const file = data.get("file");
   const inputElement = form.querySelector<HTMLInputElement>('input[name="file"]');
-  if (!(file instanceof File) || file.size === 0 || !inputElement) throw new AdminError("Escolha uma imagem.", "MEDIA_FILE_REQUIRED", "file");
-  const result = await uploadMedia(
-    state.membership.siteId,
-    file,
-    value(data, "category") || "general",
-    value(data, "alt_text"),
-    (progress) => updateUploadProgress(inputElement, progress),
-  );
-  showUploadResult(inputElement, result);
-  await reloadData("Imagem enviada e registrada na biblioteca.");
+  if (!(file instanceof File) || file.size === 0 || !inputElement) throw new AdminError("Escolha uma mídia.", "MEDIA_FILE_REQUIRED", "file");
+  const result = await processMedia(inputElement, file, value(data, "slot_key") || "general", value(data, "alt_text"));
+  if (!result) return;
+  await reloadData("Mídia enviada e registrada na biblioteca.");
 }
 
 async function handleSubmit(form: HTMLFormElement): Promise<void> {
@@ -503,21 +570,15 @@ async function uploadFromField(inputElement: HTMLInputElement): Promise<void> {
   const targetName = inputElement.dataset.uploadTarget;
   const form = inputElement.closest<HTMLFormElement>("form");
   const target = form?.querySelector<HTMLInputElement>(`[name="${targetName}"]`);
-  if (!form || !target) throw new AdminError("O campo de destino da imagem não foi encontrado.", "MEDIA_TARGET_NOT_FOUND");
+  if (!form || !target) throw new AdminError("O campo de destino da mídia não foi encontrado.", "MEDIA_TARGET_NOT_FOUND");
 
   inputElement.disabled = true;
   try {
-    const result = await uploadMedia(
-      state.membership.siteId,
-      file,
-      targetName,
-      "",
-      (progress) => updateUploadProgress(inputElement, progress),
-    );
-    target.value = result.publicUrl;
+    const result = await processMedia(inputElement, file, inputElement.dataset.mediaSlot ?? "general", "");
+    if (!result) return;
+    target.value = result.primaryUrl;
     target.dispatchEvent(new Event("change", { bubbles: true }));
-    showUploadResult(inputElement, result);
-    setMessage("Imagem enviada. Agora salve o formulário para aplicar a alteração.");
+    setMessage("Mídia enviada. Salve o formulário para aplicar a alteração.");
   } catch (error) {
     const normalized = normalizeOperationError("media", error);
     showUploadError(inputElement, normalized);
@@ -525,6 +586,31 @@ async function uploadFromField(inputElement: HTMLInputElement): Promise<void> {
   } finally {
     inputElement.disabled = false;
     inputElement.value = "";
+  }
+}
+
+function findMedia(id: string | undefined): MediaRecord | null {
+  if (!state || !id) return null;
+  return state.data.media.find((media) => media.id === id) ?? null;
+}
+
+async function handleMediaReframe(media: MediaRecord): Promise<void> {
+  if (!state) return;
+  const slotKey = slotForMedia(media);
+  const slot = getMediaSlot(slotKey);
+  setMessage("Baixando o original para reenquadrar…");
+  const file = await downloadMediaOriginal(media);
+  const source = await prepareMediaSource(file, slot);
+  try {
+    const transform = await openMediaEditor(source, slot, initialTransform(media, slotKey));
+    if (!transform) {
+      setMessage("Reenquadramento cancelado.");
+      return;
+    }
+    await reframeMedia(state.membership.siteId, media, source, slot, transform, (progress) => setMessage(progress.message));
+    await reloadData("Novo enquadramento aplicado em todos os locais que usavam a versão anterior.");
+  } finally {
+    source.release();
   }
 }
 
@@ -543,7 +629,11 @@ root.addEventListener("submit", (event) => {
 root.addEventListener("change", (event) => {
   const inputElement = event.target;
   if (!(inputElement instanceof HTMLInputElement) || !inputElement.dataset.uploadTarget) return;
-  void uploadFromField(inputElement);
+  void uploadFromField(inputElement).catch((error: unknown) => {
+    const normalized = normalizeOperationError("media", error);
+    showUploadError(inputElement, normalized);
+    setMessage(formatAdminError(normalized), true);
+  });
 });
 
 root.addEventListener("click", (event) => {
@@ -563,6 +653,13 @@ root.addEventListener("click", (event) => {
     state.tab = tabButton.dataset.tab as AdminTab;
     state.editingId = null;
     state.message = "";
+    render();
+    return;
+  }
+
+  const mediaFilter = target.closest<HTMLElement>("[data-media-filter]");
+  if (mediaFilter && state) {
+    state.mediaFilter = mediaFilter.dataset.mediaFilter as MediaFilter;
     render();
     return;
   }
@@ -597,6 +694,42 @@ root.addEventListener("click", (event) => {
     void deleteRecord(table, state.membership.siteId, id)
       .then(() => reloadData("Item excluído."))
       .catch((error: unknown) => handleAdminFailure("delete", error));
+    return;
+  }
+
+  const reframeButton = target.closest<HTMLElement>("[data-media-reframe]");
+  const reframeItem = findMedia(reframeButton?.dataset.mediaReframe);
+  if (reframeItem) {
+    void handleMediaReframe(reframeItem).catch((error: unknown) => handleAdminFailure("media-reframe", error));
+    return;
+  }
+
+  const trashButton = target.closest<HTMLElement>("[data-media-trash]");
+  const trashItem = findMedia(trashButton?.dataset.mediaTrash);
+  if (trashItem) {
+    if (!window.confirm("Enviar esta mídia para a lixeira? Ela poderá ser restaurada.")) return;
+    void sendMediaToTrash(trashItem)
+      .then(() => reloadData("Mídia enviada para a lixeira."))
+      .catch((error: unknown) => handleAdminFailure("media-trash", error));
+    return;
+  }
+
+  const restoreButton = target.closest<HTMLElement>("[data-media-restore]");
+  const restoreItem = findMedia(restoreButton?.dataset.mediaRestore);
+  if (restoreItem) {
+    void restoreMediaFromTrash(restoreItem)
+      .then(() => reloadData("Mídia restaurada."))
+      .catch((error: unknown) => handleAdminFailure("media-restore", error));
+    return;
+  }
+
+  const permanentButton = target.closest<HTMLElement>("[data-media-delete-permanent]");
+  const permanentItem = findMedia(permanentButton?.dataset.mediaDeletePermanent);
+  if (permanentItem) {
+    if (!window.confirm("Excluir definitivamente o original e todas as versões? Esta ação não pode ser desfeita.")) return;
+    void deleteMediaPermanently(permanentItem)
+      .then(() => reloadData("Mídia excluída definitivamente."))
+      .catch((error: unknown) => handleAdminFailure("media-delete", error));
   }
 });
 
