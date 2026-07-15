@@ -1,0 +1,64 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://example.invalid/cq/site-export.schema.json",
+  "title": "CQ CMS site export",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "formatVersion",
+    "exportedAt",
+    "source",
+    "site",
+    "settings",
+    "domains",
+    "sections",
+    "procedures",
+    "results",
+    "testimonials",
+    "faq",
+    "tracking",
+    "mediaFiles",
+    "mediaVariants"
+  ],
+  "properties": {
+    "formatVersion": { "const": 1 },
+    "exportedAt": { "type": "string", "format": "date-time" },
+    "source": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["projectRef", "schemaVersion", "siteId"],
+      "properties": {
+        "projectRef": { "type": "string", "minLength": 1 },
+        "schemaVersion": { "type": "string", "minLength": 1 },
+        "siteId": { "type": "string", "format": "uuid" }
+      }
+    },
+    "site": { "$ref": "#/$defs/record" },
+    "settings": { "$ref": "#/$defs/record" },
+    "domains": { "$ref": "#/$defs/records" },
+    "allowlist": { "$ref": "#/$defs/records" },
+    "sections": { "$ref": "#/$defs/records" },
+    "procedures": { "$ref": "#/$defs/records" },
+    "results": { "$ref": "#/$defs/records" },
+    "testimonials": { "$ref": "#/$defs/records" },
+    "faq": { "$ref": "#/$defs/records" },
+    "tracking": { "$ref": "#/$defs/record" },
+    "mediaFiles": { "$ref": "#/$defs/records" },
+    "mediaVariants": { "$ref": "#/$defs/records" },
+    "trackingEvents": { "$ref": "#/$defs/records" },
+    "checksums": {
+      "type": "object",
+      "additionalProperties": { "type": "string", "minLength": 1 }
+    }
+  },
+  "$defs": {
+    "record": {
+      "type": "object",
+      "additionalProperties": true
+    },
+    "records": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/record" }
+    }
+  }
+}
