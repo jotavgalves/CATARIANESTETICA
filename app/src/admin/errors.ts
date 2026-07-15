@@ -16,7 +16,7 @@ interface ErrorRecord {
 
 export class AdminError extends Error {
   readonly code: string;
-  readonly field?: string;
+  readonly field: string | undefined;
 
   constructor(message: string, code: string, field?: string) {
     super(message);
