@@ -64,7 +64,18 @@ jobs:
           name: stylelint-diagnostic
           path: app/stylelint.log
       - name: Architecture tests
-        run: npm run test
+        id: tests
+        shell: bash
+        run: |
+          set +e
+          npm run test 2>&1 | tee test.log
+          exit ${PIPESTATUS[0]}
+      - name: Upload test diagnostic
+        if: failure() && steps.tests.outcome == 'failure'
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-diagnostic
+          path: app/test.log
       - name: Production build
         run: npm run build
       - name: Verify generated bundles
