@@ -12,6 +12,13 @@ export interface AdminViewState {
   isError: boolean;
 }
 
+export interface LoginViewState {
+  message: string;
+  isError: boolean;
+  email: string;
+  recoveryMinutes: number;
+}
+
 const escapeHtml = (value: unknown): string => String(value ?? "")
   .replaceAll("&", "&amp;")
   .replaceAll("<", "&lt;")
@@ -23,11 +30,11 @@ const input = (
   name: string,
   label: string,
   value: unknown,
-  options: { type?: string; full?: boolean; required?: boolean; placeholder?: string } = {},
+  options: { type?: string; full?: boolean; required?: boolean; placeholder?: string; autocomplete?: string; minlength?: number } = {},
 ): string => `
   <div class="field${options.full ? " field-full" : ""}">
     <label for="${name}">${escapeHtml(label)}</label>
-    <input id="${name}" name="${name}" type="${options.type ?? "text"}" value="${escapeHtml(value)}"${options.required ? " required" : ""}${options.placeholder ? ` placeholder="${escapeHtml(options.placeholder)}"` : ""}>
+    <input id="${name}" name="${name}" type="${options.type ?? "text"}" value="${escapeHtml(value)}"${options.required ? " required" : ""}${options.placeholder ? ` placeholder="${escapeHtml(options.placeholder)}"` : ""}${options.autocomplete ? ` autocomplete="${escapeHtml(options.autocomplete)}"` : ""}${options.minlength ? ` minlength="${options.minlength}"` : ""}>
   </div>`;
 
 const textarea = (name: string, label: string, value: unknown, full = true): string => `
@@ -62,12 +69,13 @@ function navigation(active: AdminTab): string {
     .join("");
 }
 
-export function renderLogin(message = ""): string {
-  return `<main class="login-page"><section class="login-brand"><p class="eyebrow">CMS multi-site</p><h1>Controle todo o site sem editar código.</h1><p>Textos, imagens, procedimentos, resultados, depoimentos, SEO e rastreamento em um único painel.</p></section><section class="login-panel"><form class="login-card" data-form="login"><p class="eyebrow">Área administrativa</p><h2>Entrar no painel</h2><p>Informe um e-mail autorizado. Você receberá um link seguro de acesso.</p>${message ? `<div class="status-message">${escapeHtml(message)}</div>` : ""}${input("email", "E-mail", "", { type: "email", required: true, full: true, placeholder: "seu@email.com" })}<div class="form-actions"><button class="button button-primary" type="submit">Enviar link de acesso</button></div></form></section></main>`;
+export function renderLogin(state: LoginViewState): string {
+  const recoveryLabel = state.recoveryMinutes > 0 ? `Novo e-mail em ${state.recoveryMinutes} min` : "Esqueci minha senha";
+  return `<main class="login-page"><section class="login-brand"><p class="eyebrow">CMS multi-site</p><h1>Controle todo o site sem editar código.</h1><p>Textos, imagens, procedimentos, resultados, depoimentos, SEO e rastreamento em um único painel.</p></section><section class="login-panel"><form class="login-card" data-form="login"><p class="eyebrow">Área administrativa</p><h2>Entrar no painel</h2><p>Entre com seu e-mail autorizado e sua senha.</p>${state.message ? `<div class="status-message${state.isError ? " is-error" : ""}">${escapeHtml(state.message)}</div>` : ""}${input("email", "E-mail", state.email, { type: "email", required: true, full: true, placeholder: "seu@email.com", autocomplete: "email" })}${input("password", "Senha", "", { type: "password", required: true, full: true, autocomplete: "current-password", minlength: 8 })}<div class="form-actions"><button class="button button-primary" type="submit">Entrar</button><button class="button button-outline" type="button" data-auth-recovery${state.recoveryMinutes > 0 ? " disabled" : ""}>${recoveryLabel}</button></div><p class="auth-help field-full">O e-mail é usado somente para recuperar a senha quando necessário.</p></form></section></main>`;
 }
 
 function dashboard(data: AdminData): string {
-  return `<div class="admin-grid"><article class="metric-card"><strong>${data.procedures.length}</strong><span>procedimentos cadastrados</span></article><article class="metric-card"><strong>${data.results.filter((item) => item.is_published).length}</strong><span>resultados publicados</span></article><article class="metric-card"><strong>${data.testimonials.filter((item) => item.is_published).length}</strong><span>depoimentos publicados</span></article></div><section class="panel"><div class="panel-heading"><h2>Publicação</h2><a class="button button-outline" href="/" target="_blank" rel="noopener">Visualizar site</a></div><p>O site público lê somente conteúdo publicado. Resultados e depoimentos exigem confirmação de autorização antes de serem exibidos.</p></section>`;
+  return `<div class="admin-grid"><article class="metric-card"><strong>${data.procedures.length}</strong><span>procedimentos cadastrados</span></article><article class="metric-card"><strong>${data.results.filter((item) => item.is_published).length}</strong><span>resultados publicados</span></article><article class="metric-card"><strong>${data.testimonials.filter((item) => item.is_published).length}</strong><span>depoimentos publicados</span></article></div><section class="panel"><div class="panel-heading"><h2>Publicação</h2><a class="button button-outline" href="/" target="_blank" rel="noopener">Visualizar site</a></div><p>O site público lê somente conteúdo publicado. Resultados e depoimentos exigem confirmação de autorização antes de serem exibidos.</p></section><section class="panel account-security-panel"><div class="panel-heading"><div><h2>Senha de acesso</h2><p>Defina ou altere a senha usada para entrar no painel.</p></div></div><form class="form-grid" data-form="password">${input("new_password", "Nova senha", "", { type: "password", required: true, autocomplete: "new-password", minlength: 10 })}${input("confirm_password", "Confirmar senha", "", { type: "password", required: true, autocomplete: "new-password", minlength: 10 })}<div class="form-actions"><button class="button button-primary" type="submit">Salvar senha</button></div></form></section>`;
 }
 
 function settingsForm(data: AdminData): string {
@@ -98,10 +106,7 @@ function faqForm(item?: FaqRecord): string {
   return `<section class="panel"><div class="panel-heading"><h2>${item ? "Editar pergunta" : "Nova pergunta"}</h2>${item ? '<button class="button button-outline button-small" type="button" data-cancel-edit>Cancelar</button>' : ""}</div><form class="form-grid" data-form="faq"><input type="hidden" name="id" value="${escapeHtml(item?.id)}">${input("question", "Pergunta", item?.question, { full: true, required: true })}${textarea("answer", "Resposta", item?.answer)}${input("sort_order", "Ordem", item?.sort_order ?? 0, { type: "number" })}<div class="field">${checkbox("is_published", "Publicado", item?.is_published ?? true)}</div><div class="form-actions"><button class="button button-primary" type="submit">Salvar pergunta</button></div></form></section>`;
 }
 
-function dataRows(
-  items: Array<ProcedureRecord | ResultRecord | TestimonialRecord | FaqRecord>,
-  type: "procedure" | "result" | "testimonial" | "faq",
-): string {
+function dataRows(items: Array<ProcedureRecord | ResultRecord | TestimonialRecord | FaqRecord>, type: "procedure" | "result" | "testimonial" | "faq"): string {
   if (items.length === 0) return '<div class="empty-state">Nenhum item cadastrado.</div>';
   return `<div class="data-list">${items.map((item) => {
     const title = "name" in item ? item.name : "title" in item ? item.title : "question" in item ? item.question : item.client_display_name;
