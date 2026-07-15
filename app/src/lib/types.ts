@@ -164,9 +164,14 @@ export interface MediaUsageReference {
   record_id: string;
 }
 
+export interface PublicMediaAssets {
+  favicon: Record<string, string>;
+}
+
 export interface PublicSitePayload {
   site: SiteRecord;
   settings: SiteSettings;
+  media_assets?: PublicMediaAssets;
   sections: SectionRecord[];
   procedures: ProcedureRecord[];
   results: ResultRecord[];
