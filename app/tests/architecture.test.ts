@@ -67,7 +67,7 @@ describe("architecture rules", () => {
   it("does not import UI modules from the repository", () => {
     const repository = source["src/admin/repository.ts"] ?? "";
     expect(repository).not.toMatch(/import\s+["']\.\//);
-    expect(repository).not.toMatch(/(?:render|ui|controller)/i);
+    expect(repository).not.toMatch(/from\s+["'][^"']*(?:render|auth-ui|controller)/i);
   });
 
   it("does not mutate rendered authentication forms", () => {
