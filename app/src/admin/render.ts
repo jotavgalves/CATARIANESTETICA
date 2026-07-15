@@ -8,6 +8,8 @@ import type {
 } from "../lib/types";
 import { getMediaSlot, mediaSlotOptions, type MediaSlotKey } from "./media-schema";
 import type { Membership } from "./repository";
+import { renderSectionEditor } from "./section-editor";
+import { getSectionSchema } from "./section-schema";
 
 export type AdminTab = "dashboard" | "settings" | "content" | "procedures" | "results" | "testimonials" | "faq" | "tracking" | "media";
 export type MediaFilter = "active" | "trash";
@@ -40,7 +42,16 @@ const input = (
   name: string,
   label: string,
   value: unknown,
-  options: { type?: string; full?: boolean; required?: boolean; placeholder?: string; autocomplete?: string; minlength?: number; help?: string; readonly?: boolean } = {},
+  options: {
+    type?: string;
+    full?: boolean;
+    required?: boolean;
+    placeholder?: string;
+    autocomplete?: string;
+    minlength?: number;
+    help?: string;
+    readonly?: boolean;
+  } = {},
 ): string => `
   <div class="field${options.full ? " field-full" : ""}" data-field-name="${escapeHtml(name)}">
     <label for="${name}">${escapeHtml(label)}</label>
@@ -106,17 +117,6 @@ const formGroup = (title: string, description: string, fields: string): string =
     <div class="form-grid form-group-grid">${fields}</div>
   </fieldset>`;
 
-const sectionNames: Record<string, string> = {
-  needs: "Necessidades",
-  procedures: "Apresentação dos procedimentos",
-  process: "Como funciona",
-  about: "Sobre a profissional",
-  results: "Antes e depois",
-  testimonials: "Depoimentos",
-  faq: "Perguntas frequentes",
-  location: "Localização",
-};
-
 function navigation(active: AdminTab): string {
   const items: Array<[AdminTab, string]> = [
     ["dashboard", "Visão geral"],
@@ -156,9 +156,10 @@ function contentForms(data: AdminData): string {
   const hero = data.settings.hero;
   const heroForm = `<section class="panel"><div class="panel-heading"><div><p class="eyebrow">Primeira tela</p><h2>Apresentação principal</h2><p>Use uma versão horizontal no computador e outra vertical no celular.</p></div></div><form class="form-grid" data-form="hero">${input("eyebrow", "Chamada superior", hero.eyebrow)}${input("title", "Título principal", hero.title, { full: true, required: true })}${textarea("subtitle", "Texto de apoio", hero.subtitle)}${input("image_url", "Imagem desktop aplicada", hero.image_url, { full: true, readonly: true })}${uploadField("image_url", "Enviar imagem desktop", "hero_desktop")}${input("mobile_image_url", "Imagem mobile aplicada", hero.mobile_image_url, { full: true, readonly: true })}${uploadField("mobile_image_url", "Enviar imagem mobile", "hero_mobile")}${input("primary_cta", "Texto do botão principal", hero.primary_cta)}${input("secondary_cta", "Texto do botão secundário", hero.secondary_cta)}<div class="form-actions sticky-form-actions"><button class="button button-primary" type="submit">Salvar primeira tela</button></div></form></section>`;
   const sections = data.sections.map((item) => {
+    const schema = getSectionSchema(item.section_key);
     const contentItems = Object.values(item.content).find(Array.isArray);
     const itemCount = Array.isArray(contentItems) ? contentItems.length : 0;
-    return `<details class="panel content-panel"${item.section_key === "needs" ? " open" : ""}><summary><span><strong>${escapeHtml(sectionNames[item.section_key] || item.section_key)}</strong><small>${item.is_enabled ? "Visível" : "Oculta"}${itemCount ? ` · ${itemCount} itens` : ""}</small></span><span>Editar</span></summary><form class="form-grid content-panel-form" data-form="section"><input type="hidden" name="id" value="${escapeHtml(item.id)}">${input("eyebrow", "Chamada superior", item.eyebrow)}${input("title", "Título", item.title, { full: true })}${textarea("subtitle", "Texto de apoio", item.subtitle)}${input("sort_order", "Ordem da seção", item.sort_order, { type: "number" })}<div class="field">${checkbox("is_enabled", "Mostrar esta seção no site", item.is_enabled)}</div><details class="advanced-fields field-full"><summary>Conteúdo avançado da seção</summary>${textarea("content", "Estrutura de conteúdo", JSON.stringify(item.content, null, 2), true, "Esta área mantém listas e campos específicos. Edite apenas quando necessário.")}</details><div class="form-actions sticky-form-actions"><button class="button button-primary" type="submit">Salvar seção</button></div></form></details>`;
+    return `<details class="panel content-panel"${item.section_key === "needs" ? " open" : ""}><summary><span><strong>${escapeHtml(schema.label)}</strong><small>${item.is_enabled ? "Visível" : "Oculta"}${itemCount ? ` · ${itemCount} itens` : ""}</small></span><span>Editar</span></summary><form class="form-grid content-panel-form" data-form="section" data-section-key="${escapeHtml(item.section_key)}"><input type="hidden" name="id" value="${escapeHtml(item.id)}"><input type="hidden" name="section_key" value="${escapeHtml(item.section_key)}">${input("eyebrow", "Chamada superior", item.eyebrow)}${input("title", "Título", item.title, { full: true })}${textarea("subtitle", "Texto de apoio", item.subtitle)}${input("sort_order", "Ordem da seção", item.sort_order, { type: "number" })}<div class="field">${checkbox("is_enabled", "Mostrar esta seção no site", item.is_enabled)}</div>${renderSectionEditor(item)}<div class="form-actions sticky-form-actions"><button class="button button-primary" type="submit">Salvar seção</button></div></form></details>`;
   }).join("");
   return heroForm + `<div class="content-panels">${sections}</div>`;
 }
