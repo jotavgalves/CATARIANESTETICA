@@ -12,17 +12,34 @@ export interface Membership {
   site: SiteRecord;
 }
 
+interface ClaimedMembership {
+  site_id: string;
+  role: "owner" | "editor";
+  site: SiteRecord;
+}
+
 const tableColumns = "*";
 
+function membershipError(error: { message?: string } | null): Error {
+  const message = error?.message ?? "";
+  if (message.includes("email_not_authorized")) return new Error("Este e-mail não está autorizado a acessar o painel.");
+  if (message.includes("authentication_required")) return new Error("Sua sessão expirou. Entre novamente.");
+  return new Error("Não foi possível vincular seu acesso ao site. Tente novamente.");
+}
+
 export async function currentSession(): Promise<Session | null> {
-  const { data } = await supabase.auth.getSession();
+  const { data, error } = await supabase.auth.getSession();
+  if (error) throw error;
   return data.session;
 }
 
 export async function requestMagicLink(email: string): Promise<void> {
   const { error } = await supabase.auth.signInWithOtp({
     email,
-    options: { emailRedirectTo: `${window.location.origin}/admin/` },
+    options: {
+      emailRedirectTo: `${window.location.origin}/admin/`,
+      shouldCreateUser: false,
+    },
   });
   if (error) throw error;
 }
@@ -33,18 +50,17 @@ export async function signOut(): Promise<void> {
 }
 
 export async function loadMembership(): Promise<Membership> {
-  const { data: memberships, error: membershipError } = await supabase
-    .from("cq_site_members")
-    .select("site_id,role")
-    .eq("active", true)
-    .limit(1);
-  if (membershipError) throw membershipError;
-  const membership = memberships?.[0] as { site_id: string; role: "owner" | "editor" } | undefined;
-  if (!membership) throw new Error("Seu e-mail ainda não possui acesso a nenhum site.");
+  const { data, error } = await supabase.rpc("cq_claim_admin_access");
+  if (error) throw membershipError(error);
 
-  const { data: site, error: siteError } = await supabase.from("cq_sites").select(tableColumns).eq("id", membership.site_id).single();
-  if (siteError) throw siteError;
-  return { siteId: membership.site_id, role: membership.role, site: site as SiteRecord };
+  const claimed = data as ClaimedMembership | null;
+  if (!claimed?.site_id || !claimed.site) throw new Error("Seu e-mail não possui acesso ativo a nenhum site.");
+
+  return {
+    siteId: claimed.site_id,
+    role: claimed.role,
+    site: claimed.site,
+  };
 }
 
 export async function loadAdminData(membership: Membership): Promise<AdminData> {
