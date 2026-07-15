@@ -257,13 +257,24 @@ export async function prepareMediaSource(file: File, slot: MediaSlotDefinition):
     throw new AdminError("O arquivo não possui dimensões válidas.", "MEDIA_INVALID_DIMENSIONS");
   }
 
+  let sourceChecksum: string;
+  try {
+    sourceChecksum = await checksum(sourceFile);
+  } catch (error) {
+    loaded.release();
+    throw normalizeAdminError(error, {
+      code: "MEDIA_CHECKSUM_FAILED",
+      message: "Não foi possível validar a integridade deste arquivo.",
+    });
+  }
+
   return {
     file: sourceFile,
     originalName: file.name,
     mimeType: sourceFile.type || file.type,
     width,
     height,
-    checksum: await checksum(sourceFile),
+    checksum: sourceChecksum,
     isSvg: svg,
     drawable: loaded.drawable,
     previewUrl: loaded.previewUrl,
@@ -283,6 +294,44 @@ function rotatedSize(source: PreparedMediaSource, rotation: MediaTransform["rota
     : { width: source.width, height: source.height };
 }
 
+function clamp(value: number, minimum: number, maximum: number): number {
+  return Math.max(minimum, Math.min(maximum, value));
+}
+
+export function normalizeMediaTransform(
+  source: PreparedMediaSource,
+  width: number,
+  height: number,
+  transform: MediaTransform,
+): MediaTransform {
+  const rotated = rotatedSize(source, transform.rotation);
+  const baseScale = transform.fit === "cover"
+    ? Math.max(width / rotated.width, height / rotated.height)
+    : Math.min(width / rotated.width, height / rotated.height);
+  const minimumZoom = transform.fit === "cover" ? 1 : 0.1;
+  const zoom = clamp(Number.isFinite(transform.zoom) ? transform.zoom : 1, minimumZoom, 4);
+
+  if (transform.fit !== "cover") {
+    return {
+      ...transform,
+      zoom,
+      offsetX: clamp(Number.isFinite(transform.offsetX) ? transform.offsetX : 0, -1.5, 1.5),
+      offsetY: clamp(Number.isFinite(transform.offsetY) ? transform.offsetY : 0, -1.5, 1.5),
+    };
+  }
+
+  const renderedWidth = rotated.width * baseScale * zoom;
+  const renderedHeight = rotated.height * baseScale * zoom;
+  const maximumOffsetX = Math.max(0, (renderedWidth - width) / (2 * width));
+  const maximumOffsetY = Math.max(0, (renderedHeight - height) / (2 * height));
+  return {
+    ...transform,
+    zoom,
+    offsetX: clamp(Number.isFinite(transform.offsetX) ? transform.offsetX : 0, -maximumOffsetX, maximumOffsetX),
+    offsetY: clamp(Number.isFinite(transform.offsetY) ? transform.offsetY : 0, -maximumOffsetY, maximumOffsetY),
+  };
+}
+
 export function renderMediaCanvas(
   source: PreparedMediaSource,
   width: number,
@@ -300,17 +349,18 @@ export function renderMediaCanvas(
     context.fillRect(0, 0, width, height);
   }
 
-  const rotated = rotatedSize(source, transform.rotation);
-  const baseScale = transform.fit === "cover"
+  const normalized = normalizeMediaTransform(source, width, height, transform);
+  const rotated = rotatedSize(source, normalized.rotation);
+  const baseScale = normalized.fit === "cover"
     ? Math.max(width / rotated.width, height / rotated.height)
     : Math.min(width / rotated.width, height / rotated.height);
-  const scale = baseScale * Math.max(1, transform.zoom);
-  const offsetX = transform.offsetX * width;
-  const offsetY = transform.offsetY * height;
+  const scale = baseScale * normalized.zoom;
+  const offsetX = normalized.offsetX * width;
+  const offsetY = normalized.offsetY * height;
 
   context.save();
   context.translate(width / 2 + offsetX, height / 2 + offsetY);
-  context.rotate(transform.rotation * Math.PI / 180);
+  context.rotate(normalized.rotation * Math.PI / 180);
   context.scale(scale, scale);
   context.drawImage(source.drawable, -source.width / 2, -source.height / 2, source.width, source.height);
   context.restore();
@@ -350,27 +400,31 @@ function proportionalSize(source: PreparedMediaSource, maximum: number): { width
 }
 
 async function generateLogo(source: PreparedMediaSource, transform: MediaTransform): Promise<GeneratedMediaFile[]> {
+  const logoTransform: MediaTransform = { ...transform, fit: "contain", zoom: 1, offsetX: 0, offsetY: 0 };
   if (source.isSvg) {
     const fallbackSize = proportionalSize(source, 1200);
-    const fallbackCanvas = renderMediaCanvas(source, fallbackSize.width, fallbackSize.height, { ...transform, fit: "contain", zoom: 1, offsetX: 0, offsetY: 0 }, true);
+    const normalized = normalizeMediaTransform(source, fallbackSize.width, fallbackSize.height, logoTransform);
+    const fallbackCanvas = renderMediaCanvas(source, fallbackSize.width, fallbackSize.height, normalized, true);
     const fallback = await encodedRaster(fallbackCanvas, `${source.originalName}-fallback`, "image/png");
     return [
-      { slotKey: "logo_header", file: source.file, width: source.width, height: source.height, primary: true, crop: transform },
-      { slotKey: "logo_header_png", file: fallback, width: fallbackSize.width, height: fallbackSize.height, primary: false, crop: transform },
+      { slotKey: "logo_header", file: source.file, width: source.width, height: source.height, primary: true, crop: normalized },
+      { slotKey: "logo_header_png", file: fallback, width: fallbackSize.width, height: fallbackSize.height, primary: false, crop: normalized },
     ];
   }
   const size = proportionalSize(source, 1600);
-  const canvas = renderMediaCanvas(source, size.width, size.height, { ...transform, fit: "contain", zoom: 1, offsetX: 0, offsetY: 0 }, true);
+  const normalized = normalizeMediaTransform(source, size.width, size.height, logoTransform);
+  const canvas = renderMediaCanvas(source, size.width, size.height, normalized, true);
   const file = await encodedRaster(canvas, source.originalName, "image/png");
-  return [{ slotKey: "logo_header", file, width: size.width, height: size.height, primary: true, crop: transform }];
+  return [{ slotKey: "logo_header", file, width: size.width, height: size.height, primary: true, crop: normalized }];
 }
 
 async function generateFavicons(source: PreparedMediaSource, transform: MediaTransform): Promise<GeneratedMediaFile[]> {
   const sizes = [32, 180, 192, 512];
   const outputs: GeneratedMediaFile[] = [];
   for (const size of sizes) {
-    const paddedTransform: MediaTransform = { ...transform, fit: "contain", zoom: Math.max(1, transform.zoom) * 0.84 };
-    const canvas = renderMediaCanvas(source, size, size, paddedTransform, true);
+    const paddedTransform: MediaTransform = { ...transform, fit: "contain", zoom: clamp(transform.zoom * 0.84, 0.1, 4) };
+    const normalized = normalizeMediaTransform(source, size, size, paddedTransform);
+    const canvas = renderMediaCanvas(source, size, size, normalized, true);
     const file = await encodedRaster(canvas, `${source.originalName}-${size}`, "image/png");
     outputs.push({
       slotKey: `favicon_${size}`,
@@ -378,7 +432,7 @@ async function generateFavicons(source: PreparedMediaSource, transform: MediaTra
       width: size,
       height: size,
       primary: size === 32,
-      crop: paddedTransform,
+      crop: normalized,
     });
   }
   return outputs;
@@ -396,7 +450,8 @@ export async function generateMediaFiles(
   const dimensions = ratio && slot.width && slot.height
     ? { width: slot.width, height: slot.height }
     : proportionalSize(source, slot.maximumDimension);
-  const canvas = renderMediaCanvas(source, dimensions.width, dimensions.height, transform, false);
+  const normalized = normalizeMediaTransform(source, dimensions.width, dimensions.height, transform);
+  const canvas = renderMediaCanvas(source, dimensions.width, dimensions.height, normalized, false);
   const file = await encodedRaster(canvas, source.originalName, "image/webp");
   return [{
     slotKey: slot.key,
@@ -404,6 +459,6 @@ export async function generateMediaFiles(
     width: dimensions.width,
     height: dimensions.height,
     primary: true,
-    crop: transform,
+    crop: normalized,
   }];
 }
