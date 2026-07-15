@@ -1,0 +1,295 @@
+.media-editor-dialog {
+  width: min(96vw, 76rem);
+  max-width: none;
+  max-height: 94dvh;
+  padding: 0;
+  border: 0;
+  border-radius: 1.25rem;
+  background: var(--color-white);
+  box-shadow: 0 2rem 6rem rgb(24 16 14 / 35%);
+}
+
+.media-editor-dialog::backdrop {
+  background: rgb(20 13 11 / 72%);
+  backdrop-filter: blur(0.35rem);
+}
+
+.media-editor-card {
+  display: grid;
+  max-height: 94dvh;
+  overflow: hidden;
+}
+
+.media-editor-header,
+.media-editor-actions {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 1.25rem 1.5rem;
+}
+
+.media-editor-header {
+  border-bottom: 1px solid var(--color-line);
+}
+
+.media-editor-header h2,
+.media-editor-header p {
+  margin-bottom: 0;
+}
+
+.media-editor-header > div > p:last-child {
+  margin-top: 0.35rem;
+  color: var(--color-muted);
+  font-size: 0.85rem;
+}
+
+.media-editor-close {
+  width: 2.75rem;
+  height: 2.75rem;
+  flex: 0 0 auto;
+  border: 1px solid var(--color-line);
+  border-radius: 999px;
+  color: var(--color-ink);
+  background: var(--color-white);
+  font-size: 1.8rem;
+  line-height: 1;
+}
+
+.media-editor-layout {
+  min-height: 0;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 19rem;
+  gap: 1.25rem;
+  overflow: auto;
+  padding: 1.5rem;
+  background: #f1ece8;
+}
+
+.media-editor-stage {
+  position: relative;
+  min-height: 22rem;
+  display: grid;
+  place-items: center;
+  overflow: hidden;
+  border-radius: 1rem;
+  background-color: #d7d0cb;
+  background-image:
+    linear-gradient(45deg, rgb(255 255 255 / 55%) 25%, transparent 25%),
+    linear-gradient(-45deg, rgb(255 255 255 / 55%) 25%, transparent 25%),
+    linear-gradient(45deg, transparent 75%, rgb(255 255 255 / 55%) 75%),
+    linear-gradient(-45deg, transparent 75%, rgb(255 255 255 / 55%) 75%);
+  background-position: 0 0, 0 0.6rem, 0.6rem -0.6rem, -0.6rem 0;
+  background-size: 1.2rem 1.2rem;
+  cursor: grab;
+  touch-action: none;
+  user-select: none;
+}
+
+.media-editor-stage.is-dragging {
+  cursor: grabbing;
+}
+
+.media-editor-stage canvas {
+  display: block;
+  width: min(100%, 47rem);
+  height: auto;
+  max-height: 66dvh;
+  border-radius: 0.25rem;
+  box-shadow: 0 1rem 3rem rgb(34 22 19 / 25%);
+}
+
+.media-editor-grid {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background-image:
+    linear-gradient(to right, transparent 33.1%, rgb(255 255 255 / 55%) 33.3%, transparent 33.5%, transparent 66.4%, rgb(255 255 255 / 55%) 66.6%, transparent 66.8%),
+    linear-gradient(to bottom, transparent 33.1%, rgb(255 255 255 / 55%) 33.3%, transparent 33.5%, transparent 66.4%, rgb(255 255 255 / 55%) 66.6%, transparent 66.8%);
+}
+
+.media-editor-controls {
+  align-content: start;
+  display: grid;
+  gap: 1rem;
+  padding: 1rem;
+  border: 1px solid var(--color-line);
+  border-radius: 1rem;
+  background: var(--color-white);
+}
+
+.media-editor-source,
+.media-editor-summary {
+  display: grid;
+  gap: 0.3rem;
+  padding: 0.85rem;
+  border-radius: 0.8rem;
+  background: var(--color-soft);
+}
+
+.media-editor-source span,
+.media-editor-summary span {
+  color: var(--color-muted);
+  font-size: 0.75rem;
+}
+
+.media-editor-controls output {
+  color: var(--color-muted);
+  font-size: 0.75rem;
+}
+
+.media-editor-control-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.5rem;
+}
+
+.media-editor-actions {
+  justify-content: flex-end;
+  border-top: 1px solid var(--color-line);
+}
+
+.media-filter,
+.media-library-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+.media-library-list {
+  display: grid;
+  gap: 0.85rem;
+}
+
+.media-library-card {
+  display: grid;
+  grid-template-columns: 7rem minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 1rem;
+  padding: 0.85rem;
+  border: 1px solid var(--color-line);
+  border-radius: 1rem;
+  background: var(--color-white);
+}
+
+.media-library-card > img {
+  width: 7rem;
+  height: 5.5rem;
+  object-fit: contain;
+  border-radius: 0.75rem;
+  background-color: #e4ddd8;
+  background-image:
+    linear-gradient(45deg, rgb(255 255 255 / 55%) 25%, transparent 25%),
+    linear-gradient(-45deg, rgb(255 255 255 / 55%) 25%, transparent 25%),
+    linear-gradient(45deg, transparent 75%, rgb(255 255 255 / 55%) 75%),
+    linear-gradient(-45deg, transparent 75%, rgb(255 255 255 / 55%) 75%);
+  background-position: 0 0, 0 0.5rem, 0.5rem -0.5rem, -0.5rem 0;
+  background-size: 1rem 1rem;
+}
+
+.media-library-copy {
+  min-width: 0;
+  display: grid;
+  gap: 0.25rem;
+}
+
+.media-library-copy > strong,
+.media-library-copy > span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.media-library-copy > span,
+.media-library-copy details,
+.media-library-copy li {
+  color: var(--color-muted);
+  font-size: 0.75rem;
+}
+
+.media-library-copy details {
+  margin-top: 0.3rem;
+}
+
+.media-library-copy summary {
+  width: fit-content;
+  cursor: pointer;
+  color: var(--color-brand);
+  font-weight: 800;
+}
+
+.media-library-copy ul {
+  margin: 0.5rem 0 0;
+  padding-left: 1.15rem;
+}
+
+@media (max-width: 900px) {
+  .media-editor-layout {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .media-editor-controls {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .media-editor-source,
+  .media-editor-summary {
+    grid-column: 1 / -1;
+  }
+}
+
+@media (max-width: 680px) {
+  .media-editor-dialog {
+    width: 100vw;
+    max-height: 100dvh;
+    border-radius: 0;
+  }
+
+  .media-editor-card {
+    max-height: 100dvh;
+  }
+
+  .media-editor-header,
+  .media-editor-actions,
+  .media-editor-layout {
+    padding: 1rem;
+  }
+
+  .media-editor-layout {
+    gap: 0.8rem;
+  }
+
+  .media-editor-stage {
+    min-height: 16rem;
+  }
+
+  .media-editor-controls {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .media-editor-source,
+  .media-editor-summary {
+    grid-column: auto;
+  }
+
+  .media-editor-actions .button {
+    flex: 1;
+  }
+
+  .media-library-card {
+    grid-template-columns: 4.75rem minmax(0, 1fr);
+  }
+
+  .media-library-card > img {
+    width: 4.75rem;
+    height: 4.75rem;
+  }
+
+  .media-library-actions {
+    grid-column: 1 / -1;
+  }
+
+  .media-library-actions .button {
+    flex: 1;
+  }
+}
