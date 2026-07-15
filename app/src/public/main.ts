@@ -3,6 +3,7 @@ import { supabase } from "../lib/supabase";
 import type { ConsentState, PublicSitePayload } from "../lib/types";
 import { AnalyticsService } from "./analytics";
 import { readConsent, renderConsentBanner } from "./consent";
+import { initializeFavicons } from "./favicon-assets";
 import { initializeMobileNavigation } from "./mobile-navigation";
 import { applyDocumentMetadata, renderPublicSite } from "./render";
 import { initializeResponsiveMedia } from "./responsive-media";
@@ -103,6 +104,7 @@ async function start(): Promise<void> {
   try {
     const data = await loadSite(siteIdentifier);
     applyDocumentMetadata(data);
+    initializeFavicons(data);
     root.innerHTML = renderPublicSite(data);
     initializeResponsiveMedia(data);
     initializeBrandLogos();
