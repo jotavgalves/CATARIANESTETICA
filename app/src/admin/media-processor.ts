@@ -274,7 +274,7 @@ function rotatedSize(source: PreparedMediaSource, rotation: MediaTransform["rota
     : { width: source.width, height: source.height };
 }
 
-function drawTransformed(
+export function renderMediaCanvas(
   source: PreparedMediaSource,
   width: number,
   height: number,
@@ -343,7 +343,7 @@ function proportionalSize(source: PreparedMediaSource, maximum: number): { width
 async function generateLogo(source: PreparedMediaSource, transform: MediaTransform): Promise<GeneratedMediaFile[]> {
   if (source.isSvg) {
     const fallbackSize = proportionalSize(source, 1200);
-    const fallbackCanvas = drawTransformed(source, fallbackSize.width, fallbackSize.height, { ...transform, fit: "contain", zoom: 1, offsetX: 0, offsetY: 0 }, true);
+    const fallbackCanvas = renderMediaCanvas(source, fallbackSize.width, fallbackSize.height, { ...transform, fit: "contain", zoom: 1, offsetX: 0, offsetY: 0 }, true);
     const fallback = await encodedRaster(fallbackCanvas, `${source.originalName}-fallback`, "image/png");
     return [
       { slotKey: "logo_header", file: source.file, width: source.width, height: source.height, primary: true, crop: transform },
@@ -351,7 +351,7 @@ async function generateLogo(source: PreparedMediaSource, transform: MediaTransfo
     ];
   }
   const size = proportionalSize(source, 1600);
-  const canvas = drawTransformed(source, size.width, size.height, { ...transform, fit: "contain", zoom: 1, offsetX: 0, offsetY: 0 }, true);
+  const canvas = renderMediaCanvas(source, size.width, size.height, { ...transform, fit: "contain", zoom: 1, offsetX: 0, offsetY: 0 }, true);
   const file = await encodedRaster(canvas, source.originalName, "image/png");
   return [{ slotKey: "logo_header", file, width: size.width, height: size.height, primary: true, crop: transform }];
 }
@@ -361,7 +361,7 @@ async function generateFavicons(source: PreparedMediaSource, transform: MediaTra
   const outputs: GeneratedMediaFile[] = [];
   for (const size of sizes) {
     const paddedTransform: MediaTransform = { ...transform, fit: "contain", zoom: Math.max(1, transform.zoom) * 0.84 };
-    const canvas = drawTransformed(source, size, size, paddedTransform, true);
+    const canvas = renderMediaCanvas(source, size, size, paddedTransform, true);
     const file = await encodedRaster(canvas, `${source.originalName}-${size}`, "image/png");
     outputs.push({
       slotKey: `favicon_${size}`,
@@ -387,7 +387,7 @@ export async function generateMediaFiles(
   const dimensions = ratio && slot.width && slot.height
     ? { width: slot.width, height: slot.height }
     : proportionalSize(source, slot.maximumDimension);
-  const canvas = drawTransformed(source, dimensions.width, dimensions.height, transform, false);
+  const canvas = renderMediaCanvas(source, dimensions.width, dimensions.height, transform, false);
   const file = await encodedRaster(canvas, source.originalName, "image/webp");
   return [{
     slotKey: slot.key,
