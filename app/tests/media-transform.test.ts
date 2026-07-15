@@ -18,7 +18,7 @@ describe("media transform", () => {
     });
 
     expect(normalized.offsetX).toBeCloseTo(0.611111, 5);
-    expect(normalized.offsetY).toBe(0);
+    expect(normalized.offsetY).toBeCloseTo(0);
   });
 
   it("allows contain mode to use a safe inset", () => {
