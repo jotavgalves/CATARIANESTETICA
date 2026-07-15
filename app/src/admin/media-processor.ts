@@ -422,8 +422,8 @@ async function generateFavicons(source: PreparedMediaSource, transform: MediaTra
   const sizes = [32, 180, 192, 512];
   const outputs: GeneratedMediaFile[] = [];
   for (const size of sizes) {
-    const paddedTransform: MediaTransform = { ...transform, fit: "contain", zoom: clamp(transform.zoom * 0.84, 0.1, 4) };
-    const normalized = normalizeMediaTransform(source, size, size, paddedTransform);
+    const faviconTransform: MediaTransform = { ...transform, fit: "contain" };
+    const normalized = normalizeMediaTransform(source, size, size, faviconTransform);
     const canvas = renderMediaCanvas(source, size, size, normalized, true);
     const file = await encodedRaster(canvas, `${source.originalName}-${size}`, "image/png");
     outputs.push({
