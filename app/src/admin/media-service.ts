@@ -3,17 +3,17 @@ import { AdminError, normalizeAdminError, reportAdminError } from "./errors";
 import { generateMediaFiles, type GeneratedMediaFile, type MediaTransform, type PreparedMediaSource } from "./media-processor";
 import type { MediaSlotDefinition } from "./media-schema";
 import {
+  commitMediaVariants,
   createMediaRecord,
   createMediaVariant,
   deleteMediaMetadata,
   loadMediaUsage,
   removeMediaRecord,
   removeStorageFiles,
-  replaceMediaUrl,
-  replaceMediaVariant,
   restoreMedia,
   trashMedia,
   uploadStorageFile,
+  type CommittedMediaVariant,
   type StoredMediaObject,
 } from "./repository";
 
@@ -56,6 +56,19 @@ function primaryVariant(variants: MediaVariantRecord[], preferredSlot: string): 
 }
 
 async function cleanupIncomplete(siteId: string, mediaId: string | null, paths: string[]): Promise<void> {
+  if (mediaId) {
+    try {
+      await removeMediaRecord(siteId, mediaId);
+    } catch (error) {
+      const normalized = normalizeAdminError(error, {
+        code: "MEDIA_RECORD_CLEANUP_FAILED",
+        message: "Não foi possível remover o registro incompleto.",
+      });
+      reportAdminError("media-cleanup-record", error, normalized);
+      return;
+    }
+  }
+
   try {
     await removeStorageFiles(paths);
   } catch (error) {
@@ -64,16 +77,6 @@ async function cleanupIncomplete(siteId: string, mediaId: string | null, paths: 
       message: "Não foi possível remover todos os arquivos incompletos.",
     });
     reportAdminError("media-cleanup-storage", error, normalized);
-  }
-  if (!mediaId) return;
-  try {
-    await removeMediaRecord(siteId, mediaId);
-  } catch (error) {
-    const normalized = normalizeAdminError(error, {
-      code: "MEDIA_RECORD_CLEANUP_FAILED",
-      message: "Não foi possível remover o registro incompleto.",
-    });
-    reportAdminError("media-cleanup-record", error, normalized);
   }
 }
 
@@ -195,6 +198,19 @@ async function uploadPendingVariants(
   }
 }
 
+function committedVariant(item: PendingVariant): CommittedMediaVariant {
+  return {
+    slotKey: item.output.slotKey,
+    storagePath: item.stored.storagePath,
+    publicUrl: item.stored.publicUrl,
+    mimeType: item.output.file.type,
+    sizeBytes: item.output.file.size,
+    width: item.output.width,
+    height: item.output.height,
+    crop: item.output.crop,
+  };
+}
+
 export async function reframeMedia(
   siteId: string,
   media: MediaRecord,
@@ -206,59 +222,43 @@ export async function reframeMedia(
   onProgress?.({ stage: "generating", message: "Gerando o novo enquadramento…", completed: 0, total: 1 });
   const outputs = await generateMediaFiles(source, slot, transform);
   const pending = await uploadPendingVariants(siteId, media, slot, outputs, onProgress);
-  let databaseChanged = false;
-  let primaryUrl = "";
+  const primary = pending.find((item) => item.output.primary);
+  if (!primary) {
+    await removeStorageFiles(pending.map((item) => item.stored.storagePath));
+    throw new AdminError("A versão principal não foi criada.", "MEDIA_PRIMARY_VARIANT_MISSING");
+  }
 
   try {
-    for (const item of pending) {
-      const next = await replaceMediaVariant(siteId, media.id, item.stored, {
-        slotKey: item.output.slotKey,
-        mimeType: item.output.file.type,
-        sizeBytes: item.output.file.size,
-        width: item.output.width,
-        height: item.output.height,
-        crop: item.output.crop,
-      });
-      databaseChanged = true;
-      if (item.output.primary) {
-        primaryUrl = next.public_url;
-        if (item.previous?.public_url && item.previous.public_url !== next.public_url) {
-          await replaceMediaUrl(siteId, item.previous.public_url, next.public_url);
-        }
-      }
+    const committed = await commitMediaVariants(
+      siteId,
+      media.id,
+      pending.map(committedVariant),
+      primary.previous?.public_url,
+      primary.stored.publicUrl,
+    );
+    if (committed.length !== pending.length) {
+      throw new AdminError("O banco não confirmou todas as versões geradas.", "MEDIA_VARIANTS_COMMIT_INCOMPLETE");
     }
-
-    if (!primaryUrl) throw new AdminError("A versão principal não foi criada.", "MEDIA_PRIMARY_VARIANT_MISSING");
-
-    const oldPaths = pending
-      .map((item) => item.previous?.storage_path)
-      .filter((path): path is string => Boolean(path && path !== media.storage_path));
-    try {
-      await removeStorageFiles(oldPaths);
-    } catch (error) {
-      const normalized = normalizeAdminError(error, {
-        code: "STORAGE_OLD_VARIANT_CLEANUP_FAILED",
-        message: "O novo enquadramento foi aplicado, mas uma versão antiga não pôde ser removida.",
-      });
-      reportAdminError("media-reframe-old-cleanup", error, normalized);
-    }
-
-    onProgress?.({ stage: "complete", message: "Novo enquadramento aplicado.", completed: outputs.length, total: outputs.length });
-    return primaryUrl;
   } catch (error) {
-    if (!databaseChanged) {
-      try {
-        await removeStorageFiles(pending.map((item) => item.stored.storagePath));
-      } catch (cleanupError) {
-        const normalized = normalizeAdminError(cleanupError, {
-          code: "STORAGE_CLEANUP_FAILED",
-          message: "Não foi possível limpar as versões incompletas.",
-        });
-        reportAdminError("media-reframe-cleanup", cleanupError, normalized);
-      }
-    }
+    await removeStorageFiles(pending.map((item) => item.stored.storagePath));
     throw error;
   }
+
+  const oldPaths = pending
+    .map((item) => item.previous?.storage_path)
+    .filter((path): path is string => Boolean(path && path !== media.storage_path));
+  try {
+    await removeStorageFiles(oldPaths);
+  } catch (error) {
+    const normalized = normalizeAdminError(error, {
+      code: "STORAGE_OLD_VARIANT_CLEANUP_FAILED",
+      message: "O novo enquadramento foi aplicado, mas uma versão antiga não pôde ser removida.",
+    });
+    reportAdminError("media-reframe-old-cleanup", error, normalized);
+  }
+
+  onProgress?.({ stage: "complete", message: "Novo enquadramento aplicado.", completed: outputs.length, total: outputs.length });
+  return primary.stored.publicUrl;
 }
 
 export async function sendMediaToTrash(media: MediaRecord): Promise<void> {
