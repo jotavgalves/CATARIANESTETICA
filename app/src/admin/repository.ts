@@ -1,7 +1,22 @@
 import { runtimeConfig } from "../lib/config";
 import { supabase } from "../lib/supabase";
-import type { AdminData, FaqRecord, ProcedureRecord, ResultRecord, SectionRecord, SiteRecord, SiteSettings, TestimonialRecord, TrackingConfig } from "../lib/types";
+import type {
+  AdminData,
+  FaqRecord,
+  MediaRecord,
+  MediaUsageReference,
+  MediaVariantRecord,
+  ProcedureRecord,
+  ResultRecord,
+  SectionRecord,
+  SiteRecord,
+  SiteSettings,
+  TestimonialRecord,
+  TrackingConfig,
+} from "../lib/types";
 import { AdminError, normalizeAdminError } from "./errors";
+import type { MediaKind } from "./media-schema";
+import type { MediaTransform } from "./media-processor";
 
 export type EditableTable = "cq_procedures" | "cq_results" | "cq_testimonials" | "cq_faq_items";
 export type EditableRecord = ProcedureRecord | ResultRecord | TestimonialRecord | FaqRecord;
@@ -17,12 +32,25 @@ export interface StoredMediaObject {
   publicUrl: string;
 }
 
-export interface MediaDatabaseRecord {
+export interface OriginalMediaInput {
   originalName: string;
   mimeType: string;
   sizeBytes: number;
   category: string;
   altText: string;
+  mediaKind: MediaKind;
+  width: number;
+  height: number;
+  checksum: string;
+}
+
+export interface VariantMediaInput {
+  slotKey: string;
+  mimeType: string;
+  sizeBytes: number;
+  width: number;
+  height: number;
+  crop: MediaTransform;
 }
 
 interface ClaimedMembership {
@@ -47,8 +75,8 @@ function dataError(error: unknown, code: string, message: string): AdminError {
   return normalizeAdminError(error, { code, message });
 }
 
-function safeCategory(category: string): string {
-  return category.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/[^a-z0-9_-]+/g, "-").replace(/^-+|-+$/g, "") || "general";
+function safeSegment(value: string): string {
+  return value.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/[^a-z0-9_-]+/g, "-").replace(/^-+|-+$/g, "") || "general";
 }
 
 function fileExtension(file: File): string {
@@ -57,8 +85,11 @@ function fileExtension(file: File): string {
     "image/png": "png",
     "image/webp": "webp",
     "image/avif": "avif",
+    "image/svg+xml": "svg",
+    "image/heic": "heic",
+    "image/heif": "heif",
   };
-  return byMime[file.type] ?? file.name.split(".").pop()?.toLowerCase() ?? "webp";
+  return byMime[file.type] ?? file.name.split(".").pop()?.toLowerCase() ?? "bin";
 }
 
 export async function loadMembership(): Promise<Membership> {
@@ -79,7 +110,7 @@ export async function loadMembership(): Promise<Membership> {
 
 export async function loadAdminData(membership: Membership): Promise<AdminData> {
   const siteId = membership.siteId;
-  const [settings, sections, procedures, results, testimonials, faq, tracking] = await Promise.all([
+  const [settings, sections, procedures, results, testimonials, faq, tracking, mediaFiles, mediaVariants] = await Promise.all([
     supabase.from("cq_site_settings").select(tableColumns).eq("site_id", siteId).maybeSingle(),
     supabase.from("cq_sections").select(tableColumns).eq("site_id", siteId).order("sort_order"),
     supabase.from("cq_procedures").select(tableColumns).eq("site_id", siteId).order("sort_order"),
@@ -87,6 +118,8 @@ export async function loadAdminData(membership: Membership): Promise<AdminData> 
     supabase.from("cq_testimonials").select(tableColumns).eq("site_id", siteId).order("sort_order"),
     supabase.from("cq_faq_items").select(tableColumns).eq("site_id", siteId).order("sort_order"),
     supabase.from("cq_tracking_configs").select(tableColumns).eq("site_id", siteId).maybeSingle(),
+    supabase.from("cq_media_files").select(tableColumns).eq("site_id", siteId).order("created_at", { ascending: false }),
+    supabase.from("cq_media_variants").select(tableColumns).eq("site_id", siteId).order("created_at", { ascending: false }),
   ]);
 
   if (settings.error || !settings.data) throw dataError(settings.error, "CMS_SETTINGS_FAILED", "Não foi possível carregar as configurações do site.");
@@ -96,8 +129,14 @@ export async function loadAdminData(membership: Membership): Promise<AdminData> 
   if (testimonials.error) throw dataError(testimonials.error, "CMS_TESTIMONIALS_FAILED", "Não foi possível carregar os depoimentos.");
   if (faq.error) throw dataError(faq.error, "CMS_FAQ_FAILED", "Não foi possível carregar as perguntas frequentes.");
   if (tracking.error || !tracking.data) throw dataError(tracking.error, "CMS_TRACKING_FAILED", "Não foi possível carregar as configurações de rastreamento.");
+  if (mediaFiles.error) throw dataError(mediaFiles.error, "MEDIA_LIBRARY_FAILED", "Não foi possível carregar a biblioteca de mídia.");
+  if (mediaVariants.error) throw dataError(mediaVariants.error, "MEDIA_VARIANTS_FAILED", "Não foi possível carregar as versões de mídia.");
 
-  const media = await supabase.from("cq_media_files").select(tableColumns).eq("site_id", siteId).order("created_at", { ascending: false });
+  const variants = (mediaVariants.data ?? []) as MediaVariantRecord[];
+  const media = ((mediaFiles.data ?? []) as Omit<MediaRecord, "variants">[]).map((item) => ({
+    ...item,
+    variants: variants.filter((variant) => variant.media_id === item.id),
+  }));
 
   return {
     site: membership.site,
@@ -108,7 +147,7 @@ export async function loadAdminData(membership: Membership): Promise<AdminData> 
     testimonials: (testimonials.data ?? []) as TestimonialRecord[],
     faq: (faq.data ?? []) as FaqRecord[],
     tracking: tracking.data as TrackingConfig,
-    media: media.error ? [] : (media.data ?? []) as Array<Record<string, unknown>>,
+    media,
   };
 }
 
@@ -148,21 +187,21 @@ export async function deleteRecord(table: EditableTable, siteId: string, id: str
   if (error) throw dataError(error, "CMS_RECORD_DELETE_FAILED", "Não foi possível excluir este item.");
 }
 
-export async function uploadStorageFile(siteId: string, file: File, category: string): Promise<StoredMediaObject> {
-  const storagePath = `${siteId}/${safeCategory(category)}/${crypto.randomUUID()}.${fileExtension(file)}`;
+export async function uploadStorageFile(siteId: string, file: File, folder: string): Promise<StoredMediaObject> {
+  const storagePath = `${siteId}/${safeSegment(folder)}/${crypto.randomUUID()}.${fileExtension(file)}`;
   const { error } = await supabase.storage.from(runtimeConfig.mediaBucket).upload(storagePath, file, {
     upsert: false,
     contentType: file.type,
     cacheControl: "31536000",
   });
-  if (error) throw dataError(error, "STORAGE_UPLOAD_FAILED", "Não foi possível enviar a imagem.");
+  if (error) throw dataError(error, "STORAGE_UPLOAD_FAILED", "Não foi possível enviar o arquivo.");
 
   const { data } = supabase.storage.from(runtimeConfig.mediaBucket).getPublicUrl(storagePath);
   return { storagePath, publicUrl: data.publicUrl };
 }
 
-export async function registerMediaFile(siteId: string, stored: StoredMediaObject, record: MediaDatabaseRecord): Promise<void> {
-  const { error } = await supabase.from("cq_media_files").insert({
+export async function createMediaRecord(siteId: string, stored: StoredMediaObject, record: OriginalMediaInput): Promise<MediaRecord> {
+  const { data, error } = await supabase.from("cq_media_files").insert({
     site_id: siteId,
     storage_path: stored.storagePath,
     public_url: stored.publicUrl,
@@ -170,12 +209,100 @@ export async function registerMediaFile(siteId: string, stored: StoredMediaObjec
     mime_type: record.mimeType,
     size_bytes: record.sizeBytes,
     alt_text: record.altText,
-    category: safeCategory(record.category),
-  });
-  if (error) throw dataError(error, "MEDIA_REGISTER_FAILED", "A imagem foi enviada, mas não pôde ser registrada na biblioteca.");
+    category: safeSegment(record.category),
+    media_kind: record.mediaKind,
+    width: record.width,
+    height: record.height,
+    aspect_ratio: record.height > 0 ? record.width / record.height : 0,
+    checksum: record.checksum,
+  }).select(tableColumns).single();
+  if (error || !data) throw dataError(error, "MEDIA_REGISTER_FAILED", "O original foi enviado, mas não pôde ser registrado.");
+  return { ...(data as Omit<MediaRecord, "variants">), variants: [] };
 }
 
-export async function removeStorageFile(storagePath: string): Promise<void> {
-  const { error } = await supabase.storage.from(runtimeConfig.mediaBucket).remove([storagePath]);
-  if (error) throw dataError(error, "STORAGE_CLEANUP_FAILED", "Não foi possível remover um arquivo incompleto do armazenamento.");
+export async function createMediaVariant(
+  siteId: string,
+  mediaId: string,
+  stored: StoredMediaObject,
+  variant: VariantMediaInput,
+): Promise<MediaVariantRecord> {
+  const { data, error } = await supabase.from("cq_media_variants").insert({
+    site_id: siteId,
+    media_id: mediaId,
+    slot_key: variant.slotKey,
+    storage_path: stored.storagePath,
+    public_url: stored.publicUrl,
+    width: variant.width,
+    height: variant.height,
+    mime_type: variant.mimeType,
+    size_bytes: variant.sizeBytes,
+    crop: variant.crop,
+  }).select(tableColumns).single();
+  if (error || !data) throw dataError(error, "MEDIA_VARIANT_REGISTER_FAILED", "A versão foi enviada, mas não pôde ser registrada.");
+  return data as MediaVariantRecord;
+}
+
+export async function replaceMediaVariant(
+  siteId: string,
+  mediaId: string,
+  stored: StoredMediaObject,
+  variant: VariantMediaInput,
+): Promise<MediaVariantRecord> {
+  const { data, error } = await supabase.from("cq_media_variants").upsert({
+    site_id: siteId,
+    media_id: mediaId,
+    slot_key: variant.slotKey,
+    storage_path: stored.storagePath,
+    public_url: stored.publicUrl,
+    width: variant.width,
+    height: variant.height,
+    mime_type: variant.mimeType,
+    size_bytes: variant.sizeBytes,
+    crop: variant.crop,
+  }, { onConflict: "media_id,slot_key" }).select(tableColumns).single();
+  if (error || !data) throw dataError(error, "MEDIA_VARIANT_UPDATE_FAILED", "Não foi possível registrar o novo enquadramento.");
+  return data as MediaVariantRecord;
+}
+
+export async function removeStorageFiles(storagePaths: string[]): Promise<void> {
+  const uniquePaths = [...new Set(storagePaths.filter(Boolean))];
+  if (uniquePaths.length === 0) return;
+  const { error } = await supabase.storage.from(runtimeConfig.mediaBucket).remove(uniquePaths);
+  if (error) throw dataError(error, "STORAGE_DELETE_FAILED", "Não foi possível remover os arquivos do armazenamento.");
+}
+
+export async function removeMediaRecord(siteId: string, mediaId: string): Promise<void> {
+  const { error } = await supabase.from("cq_media_files").delete().eq("id", mediaId).eq("site_id", siteId);
+  if (error) throw dataError(error, "MEDIA_RECORD_CLEANUP_FAILED", "Não foi possível limpar um registro incompleto da biblioteca.");
+}
+
+export async function loadMediaUsage(mediaId: string): Promise<MediaUsageReference[]> {
+  const { data, error } = await supabase.rpc("cq_media_usage", { p_media_id: mediaId });
+  if (error) throw dataError(error, "MEDIA_USAGE_FAILED", "Não foi possível verificar onde a imagem é usada.");
+  return Array.isArray(data) ? data as MediaUsageReference[] : [];
+}
+
+export async function trashMedia(mediaId: string): Promise<void> {
+  const { error } = await supabase.rpc("cq_trash_media", { p_media_id: mediaId });
+  if (error) throw dataError(error, "MEDIA_TRASH_FAILED", "Não foi possível enviar a imagem para a lixeira.");
+}
+
+export async function restoreMedia(mediaId: string): Promise<void> {
+  const { error } = await supabase.rpc("cq_restore_media", { p_media_id: mediaId });
+  if (error) throw dataError(error, "MEDIA_RESTORE_FAILED", "Não foi possível restaurar a imagem.");
+}
+
+export async function deleteMediaMetadata(mediaId: string): Promise<void> {
+  const { error } = await supabase.rpc("cq_delete_media_metadata", { p_media_id: mediaId });
+  if (error) throw dataError(error, "MEDIA_DELETE_METADATA_FAILED", "Os arquivos foram removidos, mas não foi possível limpar a biblioteca.");
+}
+
+export async function replaceMediaUrl(siteId: string, oldUrl: string, newUrl: string): Promise<number> {
+  const { data, error } = await supabase.rpc("cq_replace_media_url", {
+    p_site_id: siteId,
+    p_old_url: oldUrl,
+    p_new_url: newUrl,
+  });
+  if (error) throw dataError(error, "MEDIA_REFERENCE_REPLACE_FAILED", "O novo enquadramento foi criado, mas não pôde ser aplicado aos locais em uso.");
+  return typeof data === "number" ? data : 0;
 }
