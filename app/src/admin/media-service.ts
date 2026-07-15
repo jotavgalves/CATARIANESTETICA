@@ -1,61 +1,36 @@
+import type { MediaRecord, MediaUsageReference, MediaVariantRecord } from "../lib/types";
 import { AdminError, normalizeAdminError, reportAdminError } from "./errors";
-import { registerMediaFile, removeStorageFile, uploadStorageFile } from "./repository";
+import { generateMediaFiles, type MediaTransform, type PreparedMediaSource } from "./media-processor";
+import type { MediaSlotDefinition } from "./media-schema";
+import {
+  createMediaRecord,
+  createMediaVariant,
+  deleteMediaMetadata,
+  loadMediaUsage,
+  removeMediaRecord,
+  removeStorageFiles,
+  replaceMediaUrl,
+  replaceMediaVariant,
+  restoreMedia,
+  trashMedia,
+  uploadStorageFile,
+  type StoredMediaObject,
+} from "./repository";
 
-const SOURCE_FILE_LIMIT = 30 * 1024 * 1024;
-const UPLOAD_FILE_LIMIT = 5 * 1024 * 1024;
-const TARGET_FILE_SIZE = 4.5 * 1024 * 1024;
-const MIN_QUALITY = 0.58;
-
-const supportedExtensions = new Set(["jpg", "jpeg", "png", "webp", "avif", "heic", "heif"]);
-const supportedMimeTypes = new Set([
-  "image/jpeg",
-  "image/png",
-  "image/webp",
-  "image/avif",
-  "image/heic",
-  "image/heif",
-]);
-
-export type MediaUploadStage = "validating" | "preparing" | "uploading" | "registering" | "complete";
+export type MediaUploadStage = "generating" | "uploading-original" | "uploading-variants" | "registering" | "complete";
 
 export interface MediaUploadProgress {
   stage: MediaUploadStage;
   message: string;
+  completed: number;
+  total: number;
 }
 
 export interface MediaUploadResult {
-  publicUrl: string;
-  storagePath: string;
-  originalBytes: number;
+  media: MediaRecord;
+  primaryUrl: string;
+  primaryVariant: MediaVariantRecord;
   uploadedBytes: number;
-  width: number;
-  height: number;
-  mimeType: string;
-  converted: boolean;
-}
-
-interface PreparedImage {
-  file: File;
-  width: number;
-  height: number;
-  converted: boolean;
-}
-
-interface DrawableImage {
-  source: CanvasImageSource;
-  width: number;
-  height: number;
-  release: () => void;
-}
-
-function extension(name: string): string {
-  return name.split(".").pop()?.toLowerCase() ?? "";
-}
-
-export function isHeicSource(file: Pick<File, "name" | "type">): boolean {
-  const type = file.type.toLowerCase();
-  const ext = extension(file.name);
-  return type === "image/heic" || type === "image/heif" || ext === "heic" || ext === "heif";
 }
 
 export function formatByteSize(bytes: number): string {
@@ -64,222 +39,204 @@ export function formatByteSize(bytes: number): string {
   return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
 }
 
-export function mediaMaximumDimension(category: string): number {
-  const normalized = category.toLowerCase();
-  if (normalized.includes("hero") || normalized === "image_url") return 2400;
-  if (normalized.includes("before") || normalized.includes("after") || normalized.includes("result")) return 2200;
-  if (normalized.includes("logo") || normalized.includes("favicon")) return 1600;
-  if (normalized.includes("photo") || normalized.includes("team")) return 1800;
-  return 2000;
+function primaryVariant(variants: MediaVariantRecord[], preferredSlot: string): MediaVariantRecord {
+  const exact = variants.find((variant) => variant.slot_key === preferredSlot);
+  const favicon = variants.find((variant) => variant.slot_key === "favicon_32");
+  const first = variants[0];
+  if (exact) return exact;
+  if (favicon) return favicon;
+  if (first) return first;
+  throw new AdminError("Nenhuma versão final foi criada.", "MEDIA_PRIMARY_VARIANT_MISSING");
 }
 
-function validateSource(file: File): void {
-  if (file.size === 0) throw new AdminError("Escolha uma imagem válida.", "MEDIA_EMPTY_FILE");
-  if (file.size > SOURCE_FILE_LIMIT) {
-    throw new AdminError("A imagem original excede 30 MB. Reduza o arquivo antes de enviar.", "MEDIA_SOURCE_TOO_LARGE");
+async function cleanupIncomplete(siteId: string, mediaId: string | null, paths: string[]): Promise<void> {
+  try {
+    await removeStorageFiles(paths);
+  } catch (error) {
+    const normalized = normalizeAdminError(error, {
+      code: "STORAGE_CLEANUP_FAILED",
+      message: "Não foi possível remover todos os arquivos incompletos.",
+    });
+    reportAdminError("media-cleanup-storage", error, normalized);
   }
-
-  const ext = extension(file.name);
-  const mime = file.type.toLowerCase();
-  if (ext === "svg" || mime === "image/svg+xml") {
-    throw new AdminError("Envie a logo ou a foto em PNG, JPG, WebP ou AVIF. SVG não é aceito pelo painel por segurança.", "MEDIA_SVG_BLOCKED");
-  }
-  if (!supportedExtensions.has(ext) && !supportedMimeTypes.has(mime)) {
-    throw new AdminError("Formato não reconhecido. Use JPG, PNG, WebP, AVIF, HEIC ou HEIF.", "MEDIA_UNSUPPORTED_SOURCE");
+  if (!mediaId) return;
+  try {
+    await removeMediaRecord(siteId, mediaId);
+  } catch (error) {
+    const normalized = normalizeAdminError(error, {
+      code: "MEDIA_RECORD_CLEANUP_FAILED",
+      message: "Não foi possível remover o registro incompleto.",
+    });
+    reportAdminError("media-cleanup-record", error, normalized);
   }
 }
 
-async function decodeWithImageElement(file: File): Promise<DrawableImage> {
-  const objectUrl = URL.createObjectURL(file);
-  const image = new Image();
-  image.decoding = "async";
-  image.src = objectUrl;
+export async function storeMedia(
+  siteId: string,
+  source: PreparedMediaSource,
+  slot: MediaSlotDefinition,
+  transform: MediaTransform,
+  altText: string,
+  onProgress?: (progress: MediaUploadProgress) => void,
+): Promise<MediaUploadResult> {
+  onProgress?.({ stage: "generating", message: "Gerando versões no tamanho correto…", completed: 0, total: 1 });
+  const outputs = await generateMediaFiles(source, slot, transform);
+  const totalSteps = outputs.length + 2;
+  const uploadedPaths: string[] = [];
+  let mediaId: string | null = null;
 
   try {
-    await new Promise<void>((resolve, reject) => {
-      image.addEventListener("load", () => resolve(), { once: true });
-      image.addEventListener("error", () => reject(new Error("Image decoding failed")), { once: true });
+    onProgress?.({ stage: "uploading-original", message: "Enviando o arquivo original…", completed: 0, total: totalSteps });
+    const originalStored = await uploadStorageFile(siteId, source.file, `${slot.category}/originals`);
+    uploadedPaths.push(originalStored.storagePath);
+
+    onProgress?.({ stage: "registering", message: "Registrando o original na biblioteca…", completed: 1, total: totalSteps });
+    const media = await createMediaRecord(siteId, originalStored, {
+      originalName: source.originalName,
+      mimeType: source.mimeType,
+      sizeBytes: source.file.size,
+      category: slot.category,
+      altText,
+      mediaKind: slot.kind,
+      width: source.width,
+      height: source.height,
+      checksum: source.checksum,
     });
+    mediaId = media.id;
+
+    const variants: MediaVariantRecord[] = [];
+    let uploadedBytes = source.file.size;
+    for (const [index, output] of outputs.entries()) {
+      onProgress?.({
+        stage: "uploading-variants",
+        message: `Enviando versão ${index + 1} de ${outputs.length}…`,
+        completed: index + 2,
+        total: totalSteps,
+      });
+      let stored: StoredMediaObject;
+      if (output.file === source.file) {
+        stored = originalStored;
+      } else {
+        stored = await uploadStorageFile(siteId, output.file, `${slot.category}/variants`);
+        uploadedPaths.push(stored.storagePath);
+        uploadedBytes += output.file.size;
+      }
+      const variant = await createMediaVariant(siteId, media.id, stored, {
+        slotKey: output.slotKey,
+        mimeType: output.file.type,
+        sizeBytes: output.file.size,
+        width: output.width,
+        height: output.height,
+        crop: output.crop,
+      });
+      variants.push(variant);
+    }
+
+    const mainVariant = primaryVariant(variants, slot.key);
+    const completeMedia: MediaRecord = { ...media, variants };
+    onProgress?.({ stage: "complete", message: "Mídia pronta e registrada.", completed: totalSteps, total: totalSteps });
     return {
-      source: image,
-      width: image.naturalWidth,
-      height: image.naturalHeight,
-      release: () => URL.revokeObjectURL(objectUrl),
+      media: completeMedia,
+      primaryUrl: mainVariant.public_url,
+      primaryVariant: mainVariant,
+      uploadedBytes,
     };
   } catch (error) {
-    URL.revokeObjectURL(objectUrl);
+    await cleanupIncomplete(siteId, mediaId, uploadedPaths);
     throw error;
   }
 }
 
-async function decodeImage(file: File): Promise<DrawableImage> {
-  if (typeof createImageBitmap === "function") {
-    try {
-      const bitmap = await createImageBitmap(file);
-      return {
-        source: bitmap,
-        width: bitmap.width,
-        height: bitmap.height,
-        release: () => bitmap.close(),
-      };
-    } catch {
-      return decodeWithImageElement(file);
-    }
+export async function downloadMediaOriginal(media: MediaRecord): Promise<File> {
+  let response: Response;
+  try {
+    response = await fetch(media.public_url, { cache: "no-store" });
+  } catch (error) {
+    throw normalizeAdminError(error, { code: "MEDIA_ORIGINAL_DOWNLOAD_FAILED", message: "Não foi possível baixar o original para reenquadrar." });
   }
-  return decodeWithImageElement(file);
+  if (!response.ok) throw new AdminError("O arquivo original não está disponível.", "MEDIA_ORIGINAL_NOT_AVAILABLE");
+  const blob = await response.blob();
+  return new File([blob], media.file_name, { type: media.mime_type || blob.type, lastModified: Date.now() });
 }
 
-function scaledDimensions(width: number, height: number, maximum: number): { width: number; height: number } {
-  if (width <= maximum && height <= maximum) return { width, height };
-  const scale = Math.min(maximum / width, maximum / height);
-  return {
-    width: Math.max(1, Math.round(width * scale)),
-    height: Math.max(1, Math.round(height * scale)),
-  };
-}
+export async function reframeMedia(
+  siteId: string,
+  media: MediaRecord,
+  source: PreparedMediaSource,
+  slot: MediaSlotDefinition,
+  transform: MediaTransform,
+  onProgress?: (progress: MediaUploadProgress) => void,
+): Promise<string> {
+  onProgress?.({ stage: "generating", message: "Gerando o novo enquadramento…", completed: 0, total: 1 });
+  const outputs = await generateMediaFiles(source, slot, transform);
+  const newPaths: string[] = [];
+  const oldPaths: string[] = [];
+  let primaryUrl = "";
 
-function canvasBlob(canvas: HTMLCanvasElement, mimeType: string, quality: number): Promise<Blob> {
-  return new Promise((resolve, reject) => {
-    canvas.toBlob((blob) => {
-      if (blob) resolve(blob);
-      else reject(new Error("Canvas conversion failed"));
-    }, mimeType, quality);
-  });
-}
-
-function outputName(originalName: string, mimeType: string): string {
-  const base = originalName.replace(/\.[^.]+$/, "").replace(/[^a-z0-9_-]+/gi, "-").replace(/^-+|-+$/g, "") || "imagem";
-  const ext = mimeType === "image/png" ? "png" : mimeType === "image/jpeg" ? "jpg" : "webp";
-  return `${base}.${ext}`;
-}
-
-async function encodeImage(drawable: DrawableImage, file: File, category: string): Promise<PreparedImage> {
-  const maximum = mediaMaximumDimension(category);
-  let dimensions = scaledDimensions(drawable.width, drawable.height, maximum);
-  let quality = 0.88;
-  let mimeType = category.toLowerCase().includes("favicon") && file.type === "image/png" ? "image/png" : "image/webp";
-  let lastBlob: Blob | null = null;
-
-  for (let attempt = 0; attempt < 10; attempt += 1) {
-    const canvas = document.createElement("canvas");
-    canvas.width = dimensions.width;
-    canvas.height = dimensions.height;
-    const context = canvas.getContext("2d", { alpha: true });
-    if (!context) throw new AdminError("Este navegador não conseguiu preparar a imagem.", "MEDIA_CANVAS_UNAVAILABLE");
-    context.drawImage(drawable.source, 0, 0, dimensions.width, dimensions.height);
-
-    try {
-      lastBlob = await canvasBlob(canvas, mimeType, quality);
-    } catch {
-      if (mimeType === "image/webp") {
-        mimeType = "image/jpeg";
-        lastBlob = await canvasBlob(canvas, mimeType, quality);
-      } else {
-        throw new AdminError("Não foi possível converter a imagem neste navegador.", "MEDIA_CONVERSION_FAILED");
+  try {
+    for (const [index, output] of outputs.entries()) {
+      onProgress?.({
+        stage: "uploading-variants",
+        message: `Enviando nova versão ${index + 1} de ${outputs.length}…`,
+        completed: index,
+        total: outputs.length,
+      });
+      const stored = await uploadStorageFile(siteId, output.file, `${slot.category}/variants`);
+      newPaths.push(stored.storagePath);
+      const previous = media.variants.find((variant) => variant.slot_key === output.slotKey);
+      if (previous && previous.storage_path !== media.storage_path) oldPaths.push(previous.storage_path);
+      const next = await replaceMediaVariant(siteId, media.id, stored, {
+        slotKey: output.slotKey,
+        mimeType: output.file.type,
+        sizeBytes: output.file.size,
+        width: output.width,
+        height: output.height,
+        crop: output.crop,
+      });
+      if (output.primary) {
+        primaryUrl = next.public_url;
+        if (previous?.public_url && previous.public_url !== next.public_url) {
+          await replaceMediaUrl(siteId, previous.public_url, next.public_url);
+        }
       }
     }
-
-    if (lastBlob.size <= TARGET_FILE_SIZE) break;
-    if (quality > MIN_QUALITY) {
-      quality = Math.max(MIN_QUALITY, quality - 0.08);
-    } else {
-      dimensions = {
-        width: Math.max(1, Math.round(dimensions.width * 0.84)),
-        height: Math.max(1, Math.round(dimensions.height * 0.84)),
-      };
-      quality = 0.82;
-    }
-  }
-
-  if (!lastBlob || lastBlob.size > UPLOAD_FILE_LIMIT) {
-    throw new AdminError("A imagem não pôde ser reduzida para menos de 5 MB.", "MEDIA_OUTPUT_TOO_LARGE");
-  }
-
-  return {
-    file: new File([lastBlob], outputName(file.name, lastBlob.type), {
-      type: lastBlob.type,
-      lastModified: Date.now(),
-    }),
-    width: dimensions.width,
-    height: dimensions.height,
-    converted: lastBlob.type !== file.type || lastBlob.size !== file.size || dimensions.width !== drawable.width || dimensions.height !== drawable.height,
-  };
-}
-
-async function prepareImage(file: File, category: string): Promise<PreparedImage> {
-  validateSource(file);
-
-  let drawable: DrawableImage;
-  try {
-    drawable = await decodeImage(file);
+    await removeStorageFiles(oldPaths);
+    onProgress?.({ stage: "complete", message: "Novo enquadramento aplicado.", completed: outputs.length, total: outputs.length });
+    if (!primaryUrl) throw new AdminError("A versão principal não foi criada.", "MEDIA_PRIMARY_VARIANT_MISSING");
+    return primaryUrl;
   } catch (error) {
-    if (isHeicSource(file)) {
-      throw new AdminError("O navegador não conseguiu abrir esta foto HEIC. No iPhone, tente pelo Safari atualizado ou altere Câmera > Formatos > Mais Compatível.", "MEDIA_HEIC_DECODE_FAILED");
+    try {
+      await removeStorageFiles(newPaths);
+    } catch (cleanupError) {
+      const normalized = normalizeAdminError(cleanupError, {
+        code: "STORAGE_CLEANUP_FAILED",
+        message: "Não foi possível limpar as versões incompletas.",
+      });
+      reportAdminError("media-reframe-cleanup", cleanupError, normalized);
     }
-    throw normalizeAdminError(error, {
-      code: "MEDIA_DECODE_FAILED",
-      message: "Não foi possível abrir esta imagem.",
-    });
-  }
-
-  try {
-    if (drawable.width < 1 || drawable.height < 1) {
-      throw new AdminError("A imagem não possui dimensões válidas.", "MEDIA_INVALID_DIMENSIONS");
-    }
-    return await encodeImage(drawable, file, category);
-  } finally {
-    drawable.release();
+    throw error;
   }
 }
 
-export async function uploadMedia(
-  siteId: string,
-  file: File,
-  category: string,
-  altText: string,
-  onProgress?: (progress: MediaUploadProgress) => void,
-): Promise<MediaUploadResult> {
-  onProgress?.({ stage: "validating", message: "Validando a imagem…" });
-  const originalBytes = file.size;
-
-  onProgress?.({ stage: "preparing", message: isHeicSource(file) ? "Convertendo HEIC e otimizando…" : "Otimizando dimensões e tamanho…" });
-  const prepared = await prepareImage(file, category);
-
-  onProgress?.({ stage: "uploading", message: `Enviando ${formatByteSize(prepared.file.size)}…` });
-  const stored = await uploadStorageFile(siteId, prepared.file, category);
-
-  try {
-    onProgress?.({ stage: "registering", message: "Registrando na biblioteca…" });
-    await registerMediaFile(siteId, stored, {
-      originalName: file.name,
-      mimeType: prepared.file.type,
-      sizeBytes: prepared.file.size,
-      category,
-      altText,
-    });
-  } catch (registrationError) {
-    try {
-      await removeStorageFile(stored.storagePath);
-    } catch (cleanupError) {
-      const normalizedCleanup = normalizeAdminError(cleanupError, {
-        code: "STORAGE_CLEANUP_FAILED",
-        message: "Não foi possível remover um arquivo incompleto do armazenamento.",
-      });
-      reportAdminError("media-cleanup", cleanupError, normalizedCleanup);
-    }
-    throw registrationError;
+export async function sendMediaToTrash(media: MediaRecord): Promise<void> {
+  const usage = await loadMediaUsage(media.id);
+  if (usage.length > 0) {
+    const first = usage[0];
+    const location = first ? `${first.area}: ${first.label}` : "o site";
+    throw new AdminError(`Esta mídia está sendo usada em ${location}. Substitua ou remova a referência antes de enviá-la para a lixeira.`, "MEDIA_IN_USE");
   }
+  await trashMedia(media.id);
+}
 
-  const result: MediaUploadResult = {
-    publicUrl: stored.publicUrl,
-    storagePath: stored.storagePath,
-    originalBytes,
-    uploadedBytes: prepared.file.size,
-    width: prepared.width,
-    height: prepared.height,
-    mimeType: prepared.file.type,
-    converted: prepared.converted,
-  };
-  onProgress?.({ stage: "complete", message: "Imagem enviada com sucesso." });
-  return result;
+export async function restoreMediaFromTrash(media: MediaRecord): Promise<void> {
+  await restoreMedia(media.id);
+}
+
+export async function deleteMediaPermanently(media: MediaRecord): Promise<void> {
+  if (!media.deleted_at) throw new AdminError("Envie a mídia para a lixeira antes da exclusão definitiva.", "MEDIA_NOT_IN_TRASH");
+  const usage: MediaUsageReference[] = await loadMediaUsage(media.id);
+  if (usage.length > 0) throw new AdminError("Esta mídia voltou a ser usada e não pode ser excluída.", "MEDIA_IN_USE");
+  const paths = [media.storage_path, ...media.variants.map((variant) => variant.storage_path)];
+  await removeStorageFiles(paths);
+  await deleteMediaMetadata(media.id);
 }
