@@ -1,0 +1,105 @@
+.mobile-nav-backdrop {
+  position: fixed;
+  z-index: 998;
+  inset: var(--header-height) 0 0;
+  display: none;
+  border: 0;
+  background: rgb(24 14 11 / 42%);
+  opacity: 0;
+}
+
+@media (max-width: 1180px) {
+  .mobile-nav-open body {
+    position: fixed;
+    top: calc(var(--page-scroll-y, 0px) * -1);
+    right: 0;
+    left: 0;
+    width: 100%;
+    overflow: hidden;
+  }
+
+  .nav-links {
+    top: var(--header-height);
+    bottom: auto;
+    height: calc(var(--mobile-viewport-height, 100dvh) - var(--header-height));
+    max-height: calc(100dvh - var(--header-height));
+    padding-bottom: calc(1.5rem + env(safe-area-inset-bottom));
+    overscroll-behavior: contain;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  .nav-links.is-open {
+    box-shadow: 0 1.5rem 3rem rgb(35 20 15 / 20%);
+  }
+
+  .mobile-nav-backdrop.is-open {
+    display: block;
+    opacity: 1;
+  }
+
+  .mobile-nav-open .whatsapp-float {
+    visibility: hidden;
+    opacity: 0;
+    pointer-events: none;
+  }
+}
+
+@media (max-width: 680px) {
+  .hero {
+    min-height: max(42rem, calc(100dvh - var(--header-height)));
+  }
+
+  .hero-content {
+    padding-top: calc(var(--header-height) + 3.25rem);
+    padding-bottom: calc(2.25rem + env(safe-area-inset-bottom));
+  }
+
+  .hero h1 {
+    max-width: 10ch;
+    font-size: clamp(2.5rem, 12vw, 3.6rem);
+  }
+
+  .hero .lead {
+    font-size: 0.98rem;
+    line-height: 1.6;
+  }
+
+  .hero-actions {
+    gap: 0.65rem;
+  }
+
+  .hero-actions .button {
+    min-height: 3.15rem;
+    padding-inline: 1rem;
+    font-size: 0.8rem;
+  }
+
+  .hero-trust {
+    margin-top: 1.5rem;
+  }
+
+  .whatsapp-float {
+    right: max(0.75rem, env(safe-area-inset-right));
+    bottom: max(0.75rem, env(safe-area-inset-bottom));
+  }
+
+  .card-grid,
+  .testimonial-grid,
+  .case-list {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .section-heading,
+  .sticky-copy,
+  .location-copy,
+  .about-grid > div,
+  .process-grid > div {
+    min-width: 0;
+  }
+
+  .section-heading h2,
+  .sticky-copy h2,
+  .location-copy h2 {
+    overflow-wrap: anywhere;
+  }
+}
