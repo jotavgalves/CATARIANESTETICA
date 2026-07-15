@@ -7,6 +7,7 @@ export default defineConfig({
       input: {
         public: resolve(__dirname, "index.html"),
         admin: resolve(__dirname, "admin/index.html"),
+        adminResetPassword: resolve(__dirname, "admin/reset-password/index.html"),
       },
     },
   },

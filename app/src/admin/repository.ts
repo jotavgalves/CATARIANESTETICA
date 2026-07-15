@@ -1,8 +1,6 @@
-import type { Session } from "@supabase/supabase-js";
 import { runtimeConfig } from "../lib/config";
 import { supabase } from "../lib/supabase";
 import type { AdminData, FaqRecord, ProcedureRecord, ResultRecord, SectionRecord, SiteRecord, SiteSettings, TestimonialRecord, TrackingConfig } from "../lib/types";
-import "./auth-ui";
 
 export type EditableTable = "cq_procedures" | "cq_results" | "cq_testimonials" | "cq_faq_items";
 export type EditableRecord = ProcedureRecord | ResultRecord | TestimonialRecord | FaqRecord;
@@ -23,31 +21,13 @@ const tableColumns = "*";
 
 function membershipError(error: { message?: string } | null): Error {
   const message = error?.message ?? "";
-  if (message.includes("email_not_authorized")) return new Error("Este e-mail não está autorizado a acessar o painel.");
-  if (message.includes("authentication_required")) return new Error("Sua sessão expirou. Entre novamente.");
-  return new Error("Não foi possível vincular seu acesso ao site. Tente novamente.");
+  if (message.includes("email_not_authorized")) return new Error("Este e-mail não está autorizado a acessar o painel. Código: CMS_ACCESS_DENIED");
+  if (message.includes("authentication_required")) return new Error("Sua sessão expirou. Entre novamente. Código: AUTH_SESSION_REQUIRED");
+  return new Error("Não foi possível vincular seu acesso ao site. Código: CMS_MEMBERSHIP_FAILED");
 }
 
-export async function currentSession(): Promise<Session | null> {
-  const { data, error } = await supabase.auth.getSession();
-  if (error) throw error;
-  return data.session;
-}
-
-export async function requestMagicLink(email: string): Promise<void> {
-  const { error } = await supabase.auth.signInWithOtp({
-    email,
-    options: {
-      emailRedirectTo: `${window.location.origin}/admin/`,
-      shouldCreateUser: false,
-    },
-  });
-  if (error) throw error;
-}
-
-export async function signOut(): Promise<void> {
-  const { error } = await supabase.auth.signOut();
-  if (error) throw error;
+function dataError(code: string, label: string): Error {
+  return new Error(`${label} Código: ${code}`);
 }
 
 export async function loadMembership(): Promise<Membership> {
@@ -55,7 +35,7 @@ export async function loadMembership(): Promise<Membership> {
   if (error) throw membershipError(error);
 
   const claimed = data as ClaimedMembership | null;
-  if (!claimed?.site_id || !claimed.site) throw new Error("Seu e-mail não possui acesso ativo a nenhum site.");
+  if (!claimed?.site_id || !claimed.site) throw new Error("Seu e-mail não possui acesso ativo a nenhum site. Código: CMS_MEMBERSHIP_EMPTY");
 
   return {
     siteId: claimed.site_id,
@@ -66,19 +46,25 @@ export async function loadMembership(): Promise<Membership> {
 
 export async function loadAdminData(membership: Membership): Promise<AdminData> {
   const siteId = membership.siteId;
-  const [settings, sections, procedures, results, testimonials, faq, tracking, media] = await Promise.all([
-    supabase.from("cq_site_settings").select(tableColumns).eq("site_id", siteId).single(),
+  const [settings, sections, procedures, results, testimonials, faq, tracking] = await Promise.all([
+    supabase.from("cq_site_settings").select(tableColumns).eq("site_id", siteId).maybeSingle(),
     supabase.from("cq_sections").select(tableColumns).eq("site_id", siteId).order("sort_order"),
     supabase.from("cq_procedures").select(tableColumns).eq("site_id", siteId).order("sort_order"),
     supabase.from("cq_results").select(tableColumns).eq("site_id", siteId).order("sort_order"),
     supabase.from("cq_testimonials").select(tableColumns).eq("site_id", siteId).order("sort_order"),
     supabase.from("cq_faq_items").select(tableColumns).eq("site_id", siteId).order("sort_order"),
-    supabase.from("cq_tracking_configs").select(tableColumns).eq("site_id", siteId).single(),
-    supabase.from("cq_media_files").select(tableColumns).eq("site_id", siteId).order("created_at", { ascending: false }),
+    supabase.from("cq_tracking_configs").select(tableColumns).eq("site_id", siteId).maybeSingle(),
   ]);
 
-  const firstError = [settings, sections, procedures, results, testimonials, faq, tracking, media].find((response) => response.error)?.error;
-  if (firstError) throw firstError;
+  if (settings.error || !settings.data) throw dataError("CMS_SETTINGS_FAILED", "Não foi possível carregar as configurações do site.");
+  if (sections.error) throw dataError("CMS_SECTIONS_FAILED", "Não foi possível carregar as seções do site.");
+  if (procedures.error) throw dataError("CMS_PROCEDURES_FAILED", "Não foi possível carregar os procedimentos.");
+  if (results.error) throw dataError("CMS_RESULTS_FAILED", "Não foi possível carregar os resultados.");
+  if (testimonials.error) throw dataError("CMS_TESTIMONIALS_FAILED", "Não foi possível carregar os depoimentos.");
+  if (faq.error) throw dataError("CMS_FAQ_FAILED", "Não foi possível carregar as perguntas frequentes.");
+  if (tracking.error || !tracking.data) throw dataError("CMS_TRACKING_FAILED", "Não foi possível carregar as configurações de rastreamento.");
+
+  const media = await supabase.from("cq_media_files").select(tableColumns).eq("site_id", siteId).order("created_at", { ascending: false });
 
   return {
     site: membership.site,
@@ -89,7 +75,7 @@ export async function loadAdminData(membership: Membership): Promise<AdminData> 
     testimonials: (testimonials.data ?? []) as TestimonialRecord[],
     faq: (faq.data ?? []) as FaqRecord[],
     tracking: tracking.data as TrackingConfig,
-    media: (media.data ?? []) as Array<Record<string, unknown>>,
+    media: media.error ? [] : (media.data ?? []) as Array<Record<string, unknown>>,
   };
 }
 

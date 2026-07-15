@@ -1,4 +1,4 @@
-import { readFileSync, readdirSync, statSync } from "node:fs";
+import { existsSync, readFileSync, readdirSync, statSync } from "node:fs";
 import { join, relative, resolve } from "node:path";
 import { describe, expect, it } from "vitest";
 
@@ -13,6 +13,13 @@ function filesUnder(directory: string): string[] {
 
 const sourceFiles = filesUnder(join(root, "src"));
 const source = Object.fromEntries(sourceFiles.map((path) => [relative(root, path), readFileSync(path, "utf8")]));
+const authMethods = /supabase\.auth\.(?:signInWithPassword|signInWithOtp|resetPasswordForEmail|updateUser|signOut|getSession|onAuthStateChange)\b/;
+
+function moduleScriptCount(htmlPath: string): number {
+  const html = readFileSync(htmlPath, "utf8");
+  expect(html).not.toMatch(/<script(?!\s+type="module")[^>]*>/i);
+  return html.match(/<script\s+type="module"/g)?.length ?? 0;
+}
 
 describe("architecture rules", () => {
   it("does not use important declarations", () => {
@@ -41,10 +48,39 @@ describe("architecture rules", () => {
   });
 
   it("has exactly one module entry per html page", () => {
-    for (const htmlPath of [join(root, "index.html"), join(root, "admin/index.html")]) {
-      const html = readFileSync(htmlPath, "utf8");
-      expect(html.match(/<script\s+type="module"/g)?.length ?? 0, htmlPath).toBe(1);
-      expect(html).not.toMatch(/<script(?!\s+type="module")[^>]*>/i);
+    for (const htmlPath of [
+      join(root, "index.html"),
+      join(root, "admin/index.html"),
+      join(root, "admin/reset-password/index.html"),
+    ]) {
+      expect(moduleScriptCount(htmlPath), htmlPath).toBe(1);
     }
+  });
+
+  it("keeps all Supabase auth calls in the auth controller", () => {
+    for (const [path, content] of Object.entries(source)) {
+      if (path === "src/admin/auth-controller.ts") continue;
+      expect(content, path).not.toMatch(authMethods);
+    }
+  });
+
+  it("does not import UI modules from the repository", () => {
+    const repository = source["src/admin/repository.ts"] ?? "";
+    expect(repository).not.toMatch(/import\s+["']\.\//);
+    expect(repository).not.toMatch(/from\s+["'][^"']*(?:render|auth-ui|controller)/i);
+  });
+
+  it("does not mutate rendered authentication forms", () => {
+    const adminSource = Object.entries(source)
+      .filter(([path]) => path.startsWith("src/admin/"))
+      .map(([, content]) => content)
+      .join("\n");
+    expect(adminSource).not.toMatch(/MutationObserver/);
+    expect(existsSync(join(root, "src/admin/auth-ui.ts"))).toBe(false);
+  });
+
+  it("has a single authentication state subscription", () => {
+    const controller = source["src/admin/auth-controller.ts"] ?? "";
+    expect(controller.match(/onAuthStateChange/g)?.length ?? 0).toBe(1);
   });
 });

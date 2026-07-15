@@ -1,26 +1,29 @@
-import { supabase } from "../lib/supabase";
 import type { AdminData, JsonObject } from "../lib/types";
-import { renderAdmin, renderLogin, type AdminTab, type AdminViewState } from "./render";
 import {
+  authErrorMessage,
+  consumeAuthUrlNotice,
   currentSession,
+  recoveryMinutesRemaining,
+  requestPasswordReset,
+  signInWithPassword,
+  signOut,
+  subscribeToAuth,
+  updatePassword,
+} from "./auth-controller";
+import { renderAdmin, renderLogin, type AdminTab, type AdminViewState, type LoginViewState } from "./render";
+import {
   deleteRecord,
   loadAdminData,
   loadMembership,
-  requestMagicLink,
   saveSection,
   saveSettings,
   saveTracking,
   saveTrackingSecrets,
-  signOut,
   uploadMedia,
   upsertRecord,
   type EditableTable,
   type Membership,
 } from "./repository";
-
-declare global {
-  interface Window { __cqAdminAppInitialized?: boolean; }
-}
 
 function requiredElement<T extends Element>(selector: string): T {
   const element = document.querySelector<T>(selector);
@@ -30,7 +33,13 @@ function requiredElement<T extends Element>(selector: string): T {
 
 const root = requiredElement<HTMLElement>("#admin-root");
 let state: AdminViewState | null = null;
-let loginMessage = "";
+let authenticatedInitialization: Promise<void> | null = null;
+let loginState: LoginViewState = {
+  message: "",
+  isError: false,
+  email: "",
+  recoveryMinutes: recoveryMinutesRemaining(),
+};
 
 const editableTable: Record<string, EditableTable> = {
   procedure: "cq_procedures",
@@ -40,7 +49,7 @@ const editableTable: Record<string, EditableTable> = {
 };
 
 function render(): void {
-  root.innerHTML = state ? renderAdmin(state) : renderLogin(loginMessage);
+  root.innerHTML = state ? renderAdmin(state) : renderLogin(loginState);
 }
 
 function value(form: FormData, key: string): string {
@@ -55,6 +64,22 @@ function checked(form: HTMLFormElement, key: string): boolean {
 function numberValue(form: FormData, key: string): number {
   const parsed = Number(value(form, key));
   return Number.isFinite(parsed) ? parsed : 0;
+}
+
+function loginErrorMessage(error: unknown): string {
+  const raw = error instanceof Error ? error.message : "";
+  if (/^(Informe|Use uma senha|As senhas)/.test(raw)) return raw;
+  return authErrorMessage(error);
+}
+
+function setLoginMessage(message: string, isError: boolean, email = loginState.email): void {
+  loginState = {
+    message,
+    isError,
+    email,
+    recoveryMinutes: recoveryMinutesRemaining(),
+  };
+  render();
 }
 
 function setMessage(message: string, isError = false): void {
@@ -73,28 +98,77 @@ async function reloadData(message = ""): Promise<void> {
   render();
 }
 
-async function initializeAuthenticated(): Promise<void> {
-  const membership: Membership = await loadMembership();
-  const data: AdminData = await loadAdminData(membership);
-  state = { membership, data, tab: "dashboard", editingId: null, message: "", isError: false };
-  render();
+function initializeAuthenticatedOnce(): Promise<void> {
+  if (state) return Promise.resolve();
+  if (authenticatedInitialization) return authenticatedInitialization;
+
+  authenticatedInitialization = (async () => {
+    const membership: Membership = await loadMembership();
+    const data: AdminData = await loadAdminData(membership);
+    state = { membership, data, tab: "dashboard", editingId: null, message: "", isError: false };
+    render();
+  })().finally(() => {
+    authenticatedInitialization = null;
+  });
+
+  return authenticatedInitialization;
 }
 
 async function initialize(): Promise<void> {
-  if (window.__cqAdminAppInitialized) throw new Error("Admin application initialized more than once.");
-  window.__cqAdminAppInitialized = true;
+  const notice = consumeAuthUrlNotice();
+  if (notice) {
+    loginState = {
+      message: notice.message,
+      isError: notice.isError,
+      email: "",
+      recoveryMinutes: recoveryMinutesRemaining(),
+    };
+  }
+
   const session = await currentSession();
-  if (session) await initializeAuthenticated();
-  else render();
+  if (session) {
+    await initializeAuthenticatedOnce();
+    return;
+  }
+  render();
 }
 
 async function submitLogin(form: HTMLFormElement): Promise<void> {
   const data = new FormData(form);
   const email = value(data, "email");
-  if (!email) throw new Error("Informe o e-mail.");
-  await requestMagicLink(email);
-  loginMessage = "Link enviado. Abra o e-mail e use o botão de acesso.";
-  render();
+  const password = String(data.get("password") ?? "");
+  if (!email || !password) throw new Error("Informe o e-mail e a senha.");
+
+  setLoginMessage("Validando acesso…", false, email);
+  await signInWithPassword(email, password);
+  await initializeAuthenticatedOnce();
+}
+
+async function submitPasswordRecovery(): Promise<void> {
+  const emailInput = root.querySelector<HTMLInputElement>('input[name="email"]');
+  const email = emailInput?.value.trim() ?? "";
+  if (!email) throw new Error("Informe o e-mail antes de solicitar a recuperação.");
+
+  const remaining = recoveryMinutesRemaining();
+  if (remaining > 0) {
+    setLoginMessage(`Um e-mail já foi solicitado. Aguarde ${remaining} minuto${remaining === 1 ? "" : "s"}.`, true, email);
+    return;
+  }
+
+  setLoginMessage("Enviando recuperação de senha…", false, email);
+  await requestPasswordReset(email);
+  setLoginMessage("E-mail enviado. Use o link recebido para definir uma nova senha.", false, email);
+}
+
+async function submitPasswordChange(form: HTMLFormElement): Promise<void> {
+  const data = new FormData(form);
+  const password = String(data.get("new_password") ?? "");
+  const confirmation = String(data.get("confirm_password") ?? "");
+  if (password.length < 10) throw new Error("Use uma senha com pelo menos 10 caracteres.");
+  if (password !== confirmation) throw new Error("As senhas não são iguais.");
+  await updatePassword(password);
+  form.reset();
+  setMessage("Senha atualizada com sucesso.");
 }
 
 async function submitSettings(form: HTMLFormElement): Promise<void> {
@@ -264,18 +338,14 @@ async function submitMedia(form: HTMLFormElement): Promise<void> {
   const data = new FormData(form);
   const file = data.get("file");
   if (!(file instanceof File) || file.size === 0) throw new Error("Escolha uma imagem.");
-  await uploadMedia(
-    state.membership.siteId,
-    file,
-    value(data, "category") || "general",
-    value(data, "alt_text"),
-  );
+  await uploadMedia(state.membership.siteId, file, value(data, "category") || "general", value(data, "alt_text"));
   await reloadData("Imagem enviada.");
 }
 
 async function handleSubmit(form: HTMLFormElement): Promise<void> {
   const kind = form.dataset.form;
   if (kind === "login") return submitLogin(form);
+  if (kind === "password") return submitPasswordChange(form);
   if (kind === "settings") return submitSettings(form);
   if (kind === "hero") return submitHero(form);
   if (kind === "section") return submitSection(form);
@@ -293,12 +363,9 @@ root.addEventListener("submit", (event) => {
   const form = event.target;
   if (!(form instanceof HTMLFormElement)) return;
   void handleSubmit(form).catch((error: unknown) => {
-    const message = error instanceof Error ? error.message : "Erro inesperado.";
+    const message = state ? (error instanceof Error ? error.message : "Erro inesperado.") : loginErrorMessage(error);
     if (state) setMessage(message, true);
-    else {
-      loginMessage = message;
-      render();
-    }
+    else setLoginMessage(message, true, value(new FormData(form), "email"));
   });
 });
 
@@ -322,6 +389,14 @@ root.addEventListener("click", (event) => {
   const target = event.target;
   if (!(target instanceof Element)) return;
 
+  if (target.closest("[data-auth-recovery]")) {
+    void submitPasswordRecovery().catch((error: unknown) => {
+      const email = root.querySelector<HTMLInputElement>('input[name="email"]')?.value.trim() ?? "";
+      setLoginMessage(loginErrorMessage(error), true, email);
+    });
+    return;
+  }
+
   const tabButton = target.closest<HTMLButtonElement>("[data-tab]");
   if (tabButton && state) {
     state.tab = tabButton.dataset.tab as AdminTab;
@@ -334,7 +409,7 @@ root.addEventListener("click", (event) => {
   if (target.closest("[data-sign-out]")) {
     void signOut().then(() => {
       state = null;
-      loginMessage = "";
+      loginState = { message: "", isError: false, email: "", recoveryMinutes: recoveryMinutesRemaining() };
       render();
     });
     return;
@@ -366,11 +441,10 @@ root.addEventListener("click", (event) => {
   }
 });
 
-supabase.auth.onAuthStateChange((event, session) => {
+subscribeToAuth((event, session) => {
   if (event === "SIGNED_IN" && session && !state) {
-    void initializeAuthenticated().catch((error: unknown) => {
-      loginMessage = error instanceof Error ? error.message : "Falha ao carregar painel.";
-      render();
+    void initializeAuthenticatedOnce().catch((error: unknown) => {
+      setLoginMessage(error instanceof Error ? error.message : "Não foi possível carregar o painel. Código: CMS_INITIALIZATION_FAILED", true);
     });
   }
   if (event === "SIGNED_OUT") {
@@ -380,6 +454,5 @@ supabase.auth.onAuthStateChange((event, session) => {
 });
 
 void initialize().catch((error: unknown) => {
-  loginMessage = error instanceof Error ? error.message : "Não foi possível abrir o painel.";
-  render();
+  setLoginMessage(error instanceof Error ? error.message : "Não foi possível abrir o painel. Código: CMS_BOOT_FAILED", true);
 });
