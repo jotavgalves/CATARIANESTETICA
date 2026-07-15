@@ -9,6 +9,7 @@ on:
     branches: [main]
     paths:
       - "app/**"
+      - ".github/workflows/cms-quality.yml"
 
 jobs:
   quality:
@@ -71,3 +72,10 @@ jobs:
           test "$(find dist/assets -name '*.js' | wc -l)" -ge 1
           ! grep -R "!important" dist
           ! grep -R "fix-final\|patch-temp" dist
+      - name: Upload production bundle
+        uses: actions/upload-artifact@v4
+        with:
+          name: cms-production-dist
+          path: app/dist
+          if-no-files-found: error
+          retention-days: 7
