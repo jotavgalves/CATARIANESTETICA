@@ -24,6 +24,7 @@ export interface MediaSlotDefinition {
   height: number | null;
   maximumDimension: number;
   fit: MediaFit;
+  defaultZoom?: number;
   acceptsSvg: boolean;
   help: string;
 }
@@ -62,6 +63,7 @@ export const mediaSlots: Record<MediaSlotKey, MediaSlotDefinition> = {
     height: 512,
     maximumDimension: 1600,
     fit: "contain",
+    defaultZoom: 0.84,
     acceptsSvg: true,
     help: "Enquadramento quadrado com margem de segurança. Gera 32, 180, 192 e 512 px.",
   },
