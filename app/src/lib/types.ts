@@ -122,9 +122,56 @@ export interface TrackingConfig {
   google_ads_server_enabled: boolean;
 }
 
+export interface MediaVariantRecord {
+  id: string;
+  site_id: string;
+  media_id: string;
+  slot_key: string;
+  storage_path: string;
+  public_url: string;
+  width: number;
+  height: number;
+  mime_type: string;
+  size_bytes: number;
+  crop: JsonObject;
+  created_at: string;
+}
+
+export interface MediaRecord {
+  id: string;
+  site_id: string;
+  storage_path: string;
+  public_url: string;
+  file_name: string;
+  mime_type: string;
+  size_bytes: number;
+  alt_text: string;
+  category: string;
+  media_kind: "photo" | "logo" | "favicon" | "graphic";
+  width: number;
+  height: number;
+  aspect_ratio: number;
+  checksum: string;
+  deleted_at: string | null;
+  created_at: string;
+  variants: MediaVariantRecord[];
+}
+
+export interface MediaUsageReference {
+  area: string;
+  label: string;
+  field: string;
+  record_id: string;
+}
+
+export interface PublicMediaAssets {
+  favicon: Record<string, string>;
+}
+
 export interface PublicSitePayload {
   site: SiteRecord;
   settings: SiteSettings;
+  media_assets?: PublicMediaAssets;
   sections: SectionRecord[];
   procedures: ProcedureRecord[];
   results: ResultRecord[];
@@ -134,7 +181,7 @@ export interface PublicSitePayload {
 }
 
 export interface AdminData extends PublicSitePayload {
-  media: Array<Record<string, unknown>>;
+  media: MediaRecord[];
 }
 
 export type ConsentState = {

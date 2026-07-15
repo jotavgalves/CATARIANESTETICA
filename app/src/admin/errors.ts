@@ -14,6 +14,11 @@ interface ErrorRecord {
   name?: unknown;
 }
 
+const defaultFallback: AdminErrorFallback = {
+  code: "ADMIN_OPERATION_FAILED",
+  message: "Não foi possível concluir esta operação.",
+};
+
 export class AdminError extends Error {
   readonly code: string;
   readonly field: string | undefined;
@@ -52,6 +57,22 @@ function mappedError(error: unknown): AdminError | null {
   const databaseCode = text(record.code);
   const content = searchableMessage(error);
 
+  if (/media_in_use/.test(content)) {
+    return new AdminError("Esta mídia está em uso. Substitua ou remova a referência antes de enviá-la para a lixeira.", "MEDIA_IN_USE");
+  }
+  if (/media_not_in_trash/.test(content)) {
+    return new AdminError("Envie a mídia para a lixeira antes da exclusão definitiva.", "MEDIA_NOT_IN_TRASH");
+  }
+  if (/media_not_found/.test(content)) {
+    return new AdminError("Esta mídia não existe mais na biblioteca. Atualize o painel.", "MEDIA_NOT_FOUND");
+  }
+  if (/media_access_denied/.test(content)) {
+    return new AdminError("Sua conta não tem permissão para alterar esta mídia.", "MEDIA_ACCESS_DENIED");
+  }
+  if (/media_url_required/.test(content)) {
+    return new AdminError("A referência antiga e a nova versão da mídia são obrigatórias.", "MEDIA_URL_REQUIRED");
+  }
+
   if (databaseCode === "23505" || /duplicate key|already exists|unique constraint/.test(content)) {
     if (/slug|cq_procedures_site_id_slug_key/.test(content)) {
       return new AdminError("Já existe um procedimento com este identificador. Use outro identificador ou deixe o campo vazio para gerar automaticamente.", "DATABASE_DUPLICATE_SLUG", "slug");
@@ -76,11 +97,11 @@ function mappedError(error: unknown): AdminError | null {
   }
 
   if (/mime type|content type|unsupported.*format|not supported/.test(content)) {
-    return new AdminError("O formato da imagem não pôde ser processado. Use JPG, PNG, WebP, AVIF, HEIC ou HEIF.", "STORAGE_UNSUPPORTED_FORMAT");
+    return new AdminError("O formato não pôde ser processado neste campo. Use SVG apenas para logo ou favicon; para fotos, use JPG, PNG, WebP, AVIF, HEIC ou HEIF.", "STORAGE_UNSUPPORTED_FORMAT");
   }
 
   if (/payload too large|entity too large|maximum allowed|file size|exceeded.*size|413/.test(content)) {
-    return new AdminError("A imagem ficou acima do limite de 5 MB mesmo após a preparação automática.", "STORAGE_FILE_TOO_LARGE");
+    return new AdminError("O arquivo excede o limite aceito pelo armazenamento.", "STORAGE_FILE_TOO_LARGE");
   }
 
   if (/failed to fetch|networkerror|network request failed|load failed|offline/.test(content)) {
@@ -94,19 +115,20 @@ function mappedError(error: unknown): AdminError | null {
   return null;
 }
 
-export function normalizeAdminError(error: unknown, fallback: AdminErrorFallback): AdminError {
+export function normalizeAdminError(error: unknown, fallback?: AdminErrorFallback): AdminError {
   if (error instanceof AdminError) return error;
 
   const mapped = mappedError(error);
   if (mapped) return mapped;
 
+  const safeFallback = fallback ?? defaultFallback;
   const record = asRecord(error);
   const rawMessage = error instanceof Error ? error.message.trim() : text(record.message);
   if (rawMessage && rawMessage !== "Error") {
-    return new AdminError(rawMessage.replace(/\s*Código:\s*[A-Z0-9_-]+\.?$/i, ""), fallback.code, fallback.field);
+    return new AdminError(rawMessage.replace(/\s*Código:\s*[A-Z0-9_-]+\.?$/i, ""), safeFallback.code, safeFallback.field);
   }
 
-  return new AdminError(fallback.message, fallback.code, fallback.field);
+  return new AdminError(safeFallback.message, safeFallback.code, safeFallback.field);
 }
 
 export function formatAdminError(error: AdminError): string {

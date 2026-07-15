@@ -11,7 +11,7 @@ import {
   updatePassword,
 } from "./auth-controller";
 import { AdminError, formatAdminError, normalizeAdminError, reportAdminError } from "./errors";
-import { formatByteSize, uploadMedia, type MediaUploadProgress, type MediaUploadResult } from "./media-service";
+import { createMediaController } from "./media-controller";
 import { renderAdmin, renderLogin, type AdminTab, type AdminViewState, type LoginViewState } from "./render";
 import {
   deleteRecord,
@@ -68,7 +68,12 @@ function numberValue(form: FormData, key: string): number {
 }
 
 function slugify(valueToConvert: string): string {
-  return valueToConvert.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "");
+  return valueToConvert
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "");
 }
 
 function loginErrorMessage(error: unknown): string {
@@ -102,7 +107,8 @@ function setMessage(message: string, isError = false): void {
 function clearFormErrors(form: HTMLFormElement): void {
   form.querySelectorAll<HTMLElement>(".field.has-error").forEach((field) => field.classList.remove("has-error"));
   form.querySelectorAll<HTMLElement>("[data-field-error]").forEach((message) => message.remove());
-  form.querySelectorAll<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>("[aria-invalid='true']").forEach((field) => field.removeAttribute("aria-invalid"));
+  form.querySelectorAll<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>("[aria-invalid='true']")
+    .forEach((field) => field.removeAttribute("aria-invalid"));
 }
 
 function applyFieldError(form: HTMLFormElement, error: AdminError): void {
@@ -125,14 +131,14 @@ function setFormBusy(form: HTMLFormElement, busy: boolean): void {
   if (!submitButton) return;
   if (busy) {
     submitButton.dataset.originalLabel = submitButton.textContent ?? "Salvar";
-    submitButton.textContent = form.dataset.form === "media" ? "Preparando imagem…" : "Salvando…";
+    submitButton.textContent = form.dataset.form === "media" ? "Preparando mídia…" : "Salvando…";
     submitButton.disabled = true;
     form.setAttribute("aria-busy", "true");
-  } else {
-    submitButton.textContent = submitButton.dataset.originalLabel ?? submitButton.textContent;
-    submitButton.disabled = false;
-    form.removeAttribute("aria-busy");
+    return;
   }
+  submitButton.textContent = submitButton.dataset.originalLabel ?? submitButton.textContent;
+  submitButton.disabled = false;
+  form.removeAttribute("aria-busy");
 }
 
 function normalizeOperationError(context: string, error: unknown): AdminError {
@@ -146,11 +152,14 @@ function normalizeOperationError(context: string, error: unknown): AdminError {
     faq: { code: "CMS_FAQ_SAVE_FAILED", message: "Não foi possível salvar a pergunta." },
     tracking: { code: "CMS_TRACKING_SAVE_FAILED", message: "Não foi possível salvar o rastreamento." },
     "tracking-secrets": { code: "CMS_TRACKING_SECRET_FAILED", message: "Não foi possível salvar as credenciais." },
-    media: { code: "MEDIA_UPLOAD_FAILED", message: "Não foi possível enviar a imagem." },
+    media: { code: "MEDIA_UPLOAD_FAILED", message: "Não foi possível enviar a mídia." },
     delete: { code: "CMS_DELETE_FAILED", message: "Não foi possível excluir o item." },
     initialization: { code: "CMS_INITIALIZATION_FAILED", message: "Não foi possível carregar o painel." },
   };
-  const fallback = fallbackByContext[context] ?? { code: "ADMIN_OPERATION_FAILED", message: "Não foi possível concluir esta operação." };
+  const fallback = fallbackByContext[context] ?? {
+    code: "ADMIN_OPERATION_FAILED",
+    message: "Não foi possível concluir esta operação.",
+  };
   const normalized = normalizeAdminError(error, fallback);
   reportAdminError(context, error, normalized);
   return normalized;
@@ -162,60 +171,6 @@ function handleAdminFailure(context: string, error: unknown, form?: HTMLFormElem
   setMessage(formatAdminError(normalized), true);
 }
 
-function uploadElements(inputElement: HTMLInputElement): {
-  feedback: HTMLElement | null;
-  preview: HTMLImageElement | null;
-  status: HTMLElement | null;
-  meta: HTMLElement | null;
-  progress: HTMLProgressElement | null;
-} {
-  const field = inputElement.closest<HTMLElement>("[data-upload-field]");
-  return {
-    feedback: field?.querySelector<HTMLElement>("[data-upload-feedback]") ?? null,
-    preview: field?.querySelector<HTMLImageElement>("[data-upload-preview]") ?? null,
-    status: field?.querySelector<HTMLElement>("[data-upload-status]") ?? null,
-    meta: field?.querySelector<HTMLElement>("[data-upload-meta]") ?? null,
-    progress: field?.querySelector<HTMLProgressElement>("[data-upload-progress]") ?? null,
-  };
-}
-
-function updateUploadProgress(inputElement: HTMLInputElement, update: MediaUploadProgress): void {
-  const elements = uploadElements(inputElement);
-  const stageValue: Record<MediaUploadProgress["stage"], number> = {
-    validating: 1,
-    preparing: 2,
-    uploading: 3,
-    registering: 4,
-    complete: 5,
-  };
-  if (elements.feedback) elements.feedback.hidden = false;
-  if (elements.status) elements.status.textContent = update.message;
-  if (elements.progress) elements.progress.value = stageValue[update.stage];
-}
-
-function showUploadResult(inputElement: HTMLInputElement, result: MediaUploadResult): void {
-  const elements = uploadElements(inputElement);
-  if (elements.feedback) elements.feedback.hidden = false;
-  if (elements.preview) {
-    elements.preview.src = result.publicUrl;
-    elements.preview.hidden = false;
-  }
-  if (elements.status) elements.status.textContent = "Imagem pronta e enviada.";
-  if (elements.meta) {
-    const reduction = result.originalBytes > 0 ? Math.max(0, Math.round((1 - result.uploadedBytes / result.originalBytes) * 100)) : 0;
-    elements.meta.textContent = `${result.width} × ${result.height}px · ${formatByteSize(result.uploadedBytes)}${result.converted ? ` · redução de ${reduction}%` : ""}`;
-  }
-  if (elements.progress) elements.progress.value = 5;
-}
-
-function showUploadError(inputElement: HTMLInputElement, error: AdminError): void {
-  const elements = uploadElements(inputElement);
-  if (elements.feedback) elements.feedback.hidden = false;
-  if (elements.status) elements.status.textContent = error.message;
-  if (elements.meta) elements.meta.textContent = `Código: ${error.code}`;
-  if (elements.progress) elements.progress.removeAttribute("value");
-}
-
 async function reloadData(message = ""): Promise<void> {
   if (!state) return;
   state.data = await loadAdminData(state.membership);
@@ -225,6 +180,13 @@ async function reloadData(message = ""): Promise<void> {
   render();
 }
 
+const mediaController = createMediaController({
+  getState: () => state,
+  render,
+  setMessage,
+  reloadData,
+});
+
 function initializeAuthenticatedOnce(): Promise<void> {
   if (state) return Promise.resolve();
   if (authenticatedInitialization) return authenticatedInitialization;
@@ -232,7 +194,15 @@ function initializeAuthenticatedOnce(): Promise<void> {
   authenticatedInitialization = (async () => {
     const membership: Membership = await loadMembership();
     const data: AdminData = await loadAdminData(membership);
-    state = { membership, data, tab: "dashboard", editingId: null, message: "", isError: false };
+    state = {
+      membership,
+      data,
+      tab: "dashboard",
+      editingId: null,
+      mediaFilter: "active",
+      message: "",
+      isError: false,
+    };
     render();
   })().finally(() => {
     authenticatedInitialization = null;
@@ -320,6 +290,7 @@ async function submitHero(form: HTMLFormElement): Promise<void> {
     title: value(data, "title"),
     subtitle: value(data, "subtitle"),
     image_url: value(data, "image_url"),
+    mobile_image_url: value(data, "mobile_image_url"),
     primary_cta: value(data, "primary_cta"),
     secondary_cta: value(data, "secondary_cta"),
   };
@@ -334,7 +305,11 @@ async function submitSection(form: HTMLFormElement): Promise<void> {
   try {
     content = JSON.parse(value(data, "content")) as JsonObject;
   } catch {
-    throw new AdminError("O conteúdo avançado desta seção não possui um JSON válido.", "CMS_SECTION_JSON_INVALID", "content");
+    throw new AdminError(
+      "O conteúdo avançado desta seção não possui um JSON válido.",
+      "CMS_SECTION_JSON_INVALID",
+      "content",
+    );
   }
   await saveSection(state.membership.siteId, value(data, "id"), {
     eyebrow: value(data, "eyebrow"),
@@ -352,7 +327,13 @@ async function submitProcedure(form: HTMLFormElement): Promise<void> {
   const data = new FormData(form);
   const name = value(data, "name");
   const slug = value(data, "slug") || slugify(name);
-  if (!slug) throw new AdminError("Informe um nome válido para gerar o identificador.", "CMS_PROCEDURE_SLUG_EMPTY", "name");
+  if (!slug) {
+    throw new AdminError(
+      "Informe um nome válido para gerar o identificador.",
+      "CMS_PROCEDURE_SLUG_EMPTY",
+      "name",
+    );
+  }
   await upsertRecord("cq_procedures", state.membership.siteId, {
     name,
     slug,
@@ -376,7 +357,13 @@ async function submitResult(form: HTMLFormElement): Promise<void> {
   const data = new FormData(form);
   const isPublished = checked(form, "is_published");
   const hasConsent = checked(form, "consent_confirmed");
-  if (isPublished && !hasConsent) throw new AdminError("Confirme a autorização antes de publicar o resultado.", "CONTENT_CONSENT_REQUIRED", "consent_confirmed");
+  if (isPublished && !hasConsent) {
+    throw new AdminError(
+      "Confirme a autorização antes de publicar o resultado.",
+      "CONTENT_CONSENT_REQUIRED",
+      "consent_confirmed",
+    );
+  }
   await upsertRecord("cq_results", state.membership.siteId, {
     title: value(data, "title"),
     summary: value(data, "summary"),
@@ -400,7 +387,13 @@ async function submitTestimonial(form: HTMLFormElement): Promise<void> {
   const data = new FormData(form);
   const isPublished = checked(form, "is_published");
   const hasConsent = checked(form, "consent_confirmed");
-  if (isPublished && !hasConsent) throw new AdminError("Confirme a autorização antes de publicar o depoimento.", "CONTENT_CONSENT_REQUIRED", "consent_confirmed");
+  if (isPublished && !hasConsent) {
+    throw new AdminError(
+      "Confirme a autorização antes de publicar o depoimento.",
+      "CONTENT_CONSENT_REQUIRED",
+      "consent_confirmed",
+    );
+  }
   await upsertRecord("cq_testimonials", state.membership.siteId, {
     client_display_name: value(data, "client_display_name"),
     procedure_id: value(data, "procedure_id") || null,
@@ -463,23 +456,6 @@ async function submitTrackingSecrets(form: HTMLFormElement): Promise<void> {
   setMessage("Credenciais criptografadas e salvas.");
 }
 
-async function submitMedia(form: HTMLFormElement): Promise<void> {
-  if (!state) return;
-  const data = new FormData(form);
-  const file = data.get("file");
-  const inputElement = form.querySelector<HTMLInputElement>('input[name="file"]');
-  if (!(file instanceof File) || file.size === 0 || !inputElement) throw new AdminError("Escolha uma imagem.", "MEDIA_FILE_REQUIRED", "file");
-  const result = await uploadMedia(
-    state.membership.siteId,
-    file,
-    value(data, "category") || "general",
-    value(data, "alt_text"),
-    (progress) => updateUploadProgress(inputElement, progress),
-  );
-  showUploadResult(inputElement, result);
-  await reloadData("Imagem enviada e registrada na biblioteca.");
-}
-
 async function handleSubmit(form: HTMLFormElement): Promise<void> {
   const kind = form.dataset.form;
   if (kind === "login") return submitLogin(form);
@@ -493,39 +469,7 @@ async function handleSubmit(form: HTMLFormElement): Promise<void> {
   if (kind === "faq") return submitFaq(form);
   if (kind === "tracking") return submitTracking(form);
   if (kind === "tracking-secrets") return submitTrackingSecrets(form);
-  if (kind === "media") return submitMedia(form);
-}
-
-async function uploadFromField(inputElement: HTMLInputElement): Promise<void> {
-  if (!state || !inputElement.dataset.uploadTarget) return;
-  const file = inputElement.files?.[0];
-  if (!file) return;
-  const targetName = inputElement.dataset.uploadTarget;
-  const form = inputElement.closest<HTMLFormElement>("form");
-  const target = form?.querySelector<HTMLInputElement>(`[name="${targetName}"]`);
-  if (!form || !target) throw new AdminError("O campo de destino da imagem não foi encontrado.", "MEDIA_TARGET_NOT_FOUND");
-
-  inputElement.disabled = true;
-  try {
-    const result = await uploadMedia(
-      state.membership.siteId,
-      file,
-      targetName,
-      "",
-      (progress) => updateUploadProgress(inputElement, progress),
-    );
-    target.value = result.publicUrl;
-    target.dispatchEvent(new Event("change", { bubbles: true }));
-    showUploadResult(inputElement, result);
-    setMessage("Imagem enviada. Agora salve o formulário para aplicar a alteração.");
-  } catch (error) {
-    const normalized = normalizeOperationError("media", error);
-    showUploadError(inputElement, normalized);
-    setMessage(formatAdminError(normalized), true);
-  } finally {
-    inputElement.disabled = false;
-    inputElement.value = "";
-  }
+  if (kind === "media") return mediaController.submitLibraryForm(form);
 }
 
 root.addEventListener("submit", (event) => {
@@ -534,16 +478,19 @@ root.addEventListener("submit", (event) => {
   if (!(form instanceof HTMLFormElement)) return;
   clearFormErrors(form);
   setFormBusy(form, true);
-  void handleSubmit(form).catch((error: unknown) => {
-    if (state) handleAdminFailure(form.dataset.form ?? "operation", error, form);
-    else setLoginMessage(loginErrorMessage(error), true, value(new FormData(form), "email"));
-  }).finally(() => setFormBusy(form, false));
+  void handleSubmit(form)
+    .catch((error: unknown) => {
+      if (state) handleAdminFailure(form.dataset.form ?? "operation", error, form);
+      else setLoginMessage(loginErrorMessage(error), true, value(new FormData(form), "email"));
+    })
+    .finally(() => setFormBusy(form, false));
 });
 
 root.addEventListener("change", (event) => {
-  const inputElement = event.target;
-  if (!(inputElement instanceof HTMLInputElement) || !inputElement.dataset.uploadTarget) return;
-  void uploadFromField(inputElement);
+  const input = event.target;
+  if (!(input instanceof HTMLInputElement) || !input.dataset.uploadTarget) return;
+  void mediaController.handleUploadInput(input)
+    .catch((error: unknown) => mediaController.showInputFailure(input, error));
 });
 
 root.addEventListener("click", (event) => {
@@ -567,10 +514,17 @@ root.addEventListener("click", (event) => {
     return;
   }
 
+  if (mediaController.handleClick(target)) return;
+
   if (target.closest("[data-sign-out]")) {
     void signOut().then(() => {
       state = null;
-      loginState = { message: "", isError: false, email: "", recoveryMinutes: recoveryMinutesRemaining() };
+      loginState = {
+        message: "",
+        isError: false,
+        email: "",
+        recoveryMinutes: recoveryMinutesRemaining(),
+      };
       render();
     });
     return;

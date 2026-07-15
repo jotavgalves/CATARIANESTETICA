@@ -67,7 +67,7 @@ describe("architecture rules", () => {
   it("does not import UI modules from the repository", () => {
     const repository = source["src/admin/repository.ts"] ?? "";
     expect(repository).not.toMatch(/import\s+["']\.\//);
-    expect(repository).not.toMatch(/from\s+["'][^"']*(?:render|auth-ui|controller)/i);
+    expect(repository).not.toMatch(/from\s+["'][^"']*(?:render|auth-ui|controller|editor|service)/i);
   });
 
   it("does not mutate rendered authentication forms", () => {
@@ -84,18 +84,56 @@ describe("architecture rules", () => {
     expect(controller.match(/onAuthStateChange/g)?.length ?? 0).toBe(1);
   });
 
-  it("keeps Supabase storage access inside the repository", () => {
+  it("keeps Supabase persistence inside the repository", () => {
     for (const [path, content] of Object.entries(source)) {
-      if (path === "src/admin/repository.ts") continue;
-      expect(content, path).not.toMatch(/supabase\.storage\b/);
+      if (!path.startsWith("src/admin/") || path === "src/admin/repository.ts" || path === "src/admin/auth-controller.ts") continue;
+      expect(content, path).not.toMatch(/supabase\.(?:storage|from|rpc|functions)\b/);
     }
   });
 
-  it("keeps image preparation inside the media service", () => {
-    const main = source["src/admin/main.ts"] ?? "";
+  it("keeps SVG sanitization and file generation inside the processor", () => {
+    for (const [path, content] of Object.entries(source)) {
+      if (path === "src/admin/media-processor.ts") continue;
+      expect(content, path).not.toMatch(/\b(?:DOMParser|XMLSerializer|createImageBitmap)\b/);
+      expect(content, path).not.toMatch(/canvas\.toBlob\b/);
+    }
+  });
+
+  it("has one crop renderer shared by processor and editor", () => {
+    const processor = source["src/admin/media-processor.ts"] ?? "";
+    const editor = source["src/admin/media-editor.ts"] ?? "";
+    const adminMedia = Object.entries(source)
+      .filter(([path]) => path.startsWith("src/admin/media-"))
+      .map(([, content]) => content)
+      .join("\n");
+    expect(processor.match(/function renderMediaCanvas/g)?.length ?? 0).toBe(1);
+    expect(editor).toMatch(/import\s+\{[^}]*renderMediaCanvas[^}]*\}\s+from\s+["']\.\/media-processor["']/s);
+    expect(adminMedia.match(/context\.translate\(width \/ 2 \+ offsetX/g)?.length ?? 0).toBe(1);
+    expect(adminMedia.match(/context\.rotate\(normalized\.rotation/g)?.length ?? 0).toBe(1);
+  });
+
+  it("keeps slot definitions in one schema", () => {
+    const schema = source["src/admin/media-schema.ts"] ?? "";
+    const otherAdmin = Object.entries(source)
+      .filter(([path]) => path.startsWith("src/admin/") && path !== "src/admin/media-schema.ts")
+      .map(([, content]) => content)
+      .join("\n");
+    for (const slot of ["hero_desktop", "hero_mobile", "procedure_card", "result_before", "result_after", "testimonial_photo"]) {
+      expect(schema).toContain(`${slot}:`);
+      expect(otherAdmin.match(new RegExp(`${slot}:\\s*\\{`, "g"))?.length ?? 0).toBe(0);
+    }
+  });
+
+  it("keeps the editor independent from persistence", () => {
+    const editor = source["src/admin/media-editor.ts"] ?? "";
+    expect(editor).not.toMatch(/supabase|repository|media-service/);
+  });
+
+  it("does not retain the previous upload implementation", () => {
     const repository = source["src/admin/repository.ts"] ?? "";
-    expect(main).toMatch(/from\s+["']\.\/media-service["']/);
-    expect(repository).not.toMatch(/createImageBitmap|canvas\.toBlob|document\.createElement\(["']canvas/);
+    const service = source["src/admin/media-service.ts"] ?? "";
+    expect(repository).not.toMatch(/registerMediaFile|removeStorageFile\s*\(/);
+    expect(service).not.toMatch(/function prepareImage|function encodeImage|mediaMaximumDimension/);
   });
 
   it("does not throw raw Supabase errors from the repository", () => {

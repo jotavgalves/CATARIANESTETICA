@@ -3,8 +3,10 @@ import { supabase } from "../lib/supabase";
 import type { ConsentState, PublicSitePayload } from "../lib/types";
 import { AnalyticsService } from "./analytics";
 import { readConsent, renderConsentBanner } from "./consent";
+import { initializeFavicons } from "./favicon-assets";
 import { initializeMobileNavigation } from "./mobile-navigation";
 import { applyDocumentMetadata, renderPublicSite } from "./render";
+import { initializeResponsiveMedia } from "./responsive-media";
 
 declare global {
   interface Window { __cqPublicAppInitialized?: boolean; }
@@ -102,7 +104,9 @@ async function start(): Promise<void> {
   try {
     const data = await loadSite(siteIdentifier);
     applyDocumentMetadata(data);
+    initializeFavicons(data);
     root.innerHTML = renderPublicSite(data);
+    initializeResponsiveMedia(data);
     initializeBrandLogos();
     initializeMobileNavigation();
 
@@ -116,7 +120,7 @@ async function start(): Promise<void> {
       void analytics.updateConsent(nextConsent).then(() => analytics.track("page_view"));
     });
   } catch (error) {
-    root.innerHTML = `<main class="error-state"><div><h1>Não foi possível carregar o site.</h1><p>${error instanceof Error ? error.message : "Erro inesperado."}</p></div></main>`;
+    root.innerHTML = `<main class="error-state"><div><h1>Não foi possível carregar o site.</h1><p>${error instanceof Error ? error.message : "Não foi possível concluir o carregamento."}</p></div></main>`;
   }
 }
 
