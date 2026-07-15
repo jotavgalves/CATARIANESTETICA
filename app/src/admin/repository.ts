@@ -2,6 +2,7 @@ import type { Session } from "@supabase/supabase-js";
 import { runtimeConfig } from "../lib/config";
 import { supabase } from "../lib/supabase";
 import type { AdminData, FaqRecord, ProcedureRecord, ResultRecord, SectionRecord, SiteRecord, SiteSettings, TestimonialRecord, TrackingConfig } from "../lib/types";
+import "./auth-ui";
 
 export type EditableTable = "cq_procedures" | "cq_results" | "cq_testimonials" | "cq_faq_items";
 export type EditableRecord = ProcedureRecord | ResultRecord | TestimonialRecord | FaqRecord;
