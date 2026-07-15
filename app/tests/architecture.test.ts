@@ -109,7 +109,7 @@ describe("architecture rules", () => {
     expect(processor.match(/function renderMediaCanvas/g)?.length ?? 0).toBe(1);
     expect(editor).toMatch(/import\s+\{[^}]*renderMediaCanvas[^}]*\}\s+from\s+["']\.\/media-processor["']/s);
     expect(adminMedia.match(/context\.translate\(width \/ 2 \+ offsetX/g)?.length ?? 0).toBe(1);
-    expect(adminMedia.match(/context\.rotate\(transform\.rotation/g)?.length ?? 0).toBe(1);
+    expect(adminMedia.match(/context\.rotate\(normalized\.rotation/g)?.length ?? 0).toBe(1);
   });
 
   it("keeps slot definitions in one schema", () => {
