@@ -3,6 +3,7 @@ import { supabase } from "../lib/supabase";
 import type { ConsentState, PublicSitePayload } from "../lib/types";
 import { AnalyticsService } from "./analytics";
 import { readConsent, renderConsentBanner } from "./consent";
+import { initializeMobileNavigation } from "./mobile-navigation";
 import { applyDocumentMetadata, renderPublicSite } from "./render";
 
 declare global {
@@ -47,33 +48,7 @@ function initializeBrandLogos(): void {
 
 function initializeInteractions(analytics: AnalyticsService): void {
   const header = document.querySelector<HTMLElement>("[data-header]");
-  const navigation = document.querySelector<HTMLElement>("[data-nav]");
-  const menuButton = document.querySelector<HTMLButtonElement>("[data-menu]");
-  const desktopNavigation = window.matchMedia("(min-width: 1181px)");
-
-  const closeMenu = (): void => {
-    navigation?.classList.remove("is-open");
-    document.body.classList.remove("menu-open");
-    menuButton?.setAttribute("aria-expanded", "false");
-    menuButton?.setAttribute("aria-label", "Abrir menu");
-  };
-
   window.addEventListener("scroll", () => header?.classList.toggle("is-scrolled", window.scrollY > 20), { passive: true });
-  desktopNavigation.addEventListener("change", (event) => {
-    if (event.matches) closeMenu();
-  });
-
-  menuButton?.addEventListener("click", () => {
-    const isOpen = navigation?.classList.toggle("is-open") ?? false;
-    document.body.classList.toggle("menu-open", isOpen);
-    menuButton.setAttribute("aria-expanded", String(isOpen));
-    menuButton.setAttribute("aria-label", isOpen ? "Fechar menu" : "Abrir menu");
-  });
-  navigation?.addEventListener("click", closeMenu);
-
-  document.addEventListener("keydown", (event) => {
-    if (event.key === "Escape") closeMenu();
-  });
 
   document.addEventListener("click", (event) => {
     const target = event.target;
@@ -129,6 +104,7 @@ async function start(): Promise<void> {
     applyDocumentMetadata(data);
     root.innerHTML = renderPublicSite(data);
     initializeBrandLogos();
+    initializeMobileNavigation();
 
     const analytics = new AnalyticsService(siteIdentifier, data.tracking, readConsent() ?? defaultConsent);
     await analytics.initialize();
