@@ -1,0 +1,24 @@
+{
+  "source": {
+    "projectRef": "SOURCE_PROJECT_REF",
+    "supabaseUrl": "https://SOURCE_PROJECT_REF.supabase.co",
+    "serviceRoleEnv": "SOURCE_SUPABASE_SERVICE_ROLE_KEY"
+  },
+  "target": {
+    "projectRef": "TARGET_PROJECT_REF",
+    "supabaseUrl": "https://TARGET_PROJECT_REF.supabase.co",
+    "serviceRoleEnv": "TARGET_SUPABASE_SERVICE_ROLE_KEY"
+  },
+  "site": {
+    "siteId": "00000000-0000-0000-0000-000000000000",
+    "siteIdentifier": "site-slug",
+    "mediaBucket": "cq-media"
+  },
+  "options": {
+    "preserveIds": true,
+    "includeTrackingEvents": false,
+    "includeEncryptedSecrets": false,
+    "verifyChecksums": true,
+    "refuseNonEmptyTarget": true
+  }
+}
