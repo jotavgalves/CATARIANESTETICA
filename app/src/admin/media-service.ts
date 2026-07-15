@@ -1,6 +1,6 @@
 import type { MediaRecord, MediaUsageReference, MediaVariantRecord } from "../lib/types";
 import { AdminError, normalizeAdminError, reportAdminError } from "./errors";
-import { generateMediaFiles, type MediaTransform, type PreparedMediaSource } from "./media-processor";
+import { generateMediaFiles, type GeneratedMediaFile, type MediaTransform, type PreparedMediaSource } from "./media-processor";
 import type { MediaSlotDefinition } from "./media-schema";
 import {
   createMediaRecord,
@@ -31,6 +31,12 @@ export interface MediaUploadResult {
   primaryUrl: string;
   primaryVariant: MediaVariantRecord;
   uploadedBytes: number;
+}
+
+interface PendingVariant {
+  output: GeneratedMediaFile;
+  stored: StoredMediaObject;
+  previous: MediaVariantRecord | undefined;
 }
 
 export function formatByteSize(bytes: number): string {
@@ -159,6 +165,36 @@ export async function downloadMediaOriginal(media: MediaRecord): Promise<File> {
   return new File([blob], media.file_name, { type: media.mime_type || blob.type, lastModified: Date.now() });
 }
 
+async function uploadPendingVariants(
+  siteId: string,
+  media: MediaRecord,
+  slot: MediaSlotDefinition,
+  outputs: GeneratedMediaFile[],
+  onProgress?: (progress: MediaUploadProgress) => void,
+): Promise<PendingVariant[]> {
+  const pending: PendingVariant[] = [];
+  try {
+    for (const [index, output] of outputs.entries()) {
+      onProgress?.({
+        stage: "uploading-variants",
+        message: `Enviando nova versão ${index + 1} de ${outputs.length}…`,
+        completed: index,
+        total: outputs.length,
+      });
+      const stored = await uploadStorageFile(siteId, output.file, `${slot.category}/variants`);
+      pending.push({
+        output,
+        stored,
+        previous: media.variants.find((variant) => variant.slot_key === output.slotKey),
+      });
+    }
+    return pending;
+  } catch (error) {
+    await removeStorageFiles(pending.map((item) => item.stored.storagePath));
+    throw error;
+  }
+}
+
 export async function reframeMedia(
   siteId: string,
   media: MediaRecord,
@@ -169,50 +205,57 @@ export async function reframeMedia(
 ): Promise<string> {
   onProgress?.({ stage: "generating", message: "Gerando o novo enquadramento…", completed: 0, total: 1 });
   const outputs = await generateMediaFiles(source, slot, transform);
-  const newPaths: string[] = [];
-  const oldPaths: string[] = [];
+  const pending = await uploadPendingVariants(siteId, media, slot, outputs, onProgress);
+  let databaseChanged = false;
   let primaryUrl = "";
 
   try {
-    for (const [index, output] of outputs.entries()) {
-      onProgress?.({
-        stage: "uploading-variants",
-        message: `Enviando nova versão ${index + 1} de ${outputs.length}…`,
-        completed: index,
-        total: outputs.length,
+    for (const item of pending) {
+      const next = await replaceMediaVariant(siteId, media.id, item.stored, {
+        slotKey: item.output.slotKey,
+        mimeType: item.output.file.type,
+        sizeBytes: item.output.file.size,
+        width: item.output.width,
+        height: item.output.height,
+        crop: item.output.crop,
       });
-      const stored = await uploadStorageFile(siteId, output.file, `${slot.category}/variants`);
-      newPaths.push(stored.storagePath);
-      const previous = media.variants.find((variant) => variant.slot_key === output.slotKey);
-      if (previous && previous.storage_path !== media.storage_path) oldPaths.push(previous.storage_path);
-      const next = await replaceMediaVariant(siteId, media.id, stored, {
-        slotKey: output.slotKey,
-        mimeType: output.file.type,
-        sizeBytes: output.file.size,
-        width: output.width,
-        height: output.height,
-        crop: output.crop,
-      });
-      if (output.primary) {
+      databaseChanged = true;
+      if (item.output.primary) {
         primaryUrl = next.public_url;
-        if (previous?.public_url && previous.public_url !== next.public_url) {
-          await replaceMediaUrl(siteId, previous.public_url, next.public_url);
+        if (item.previous?.public_url && item.previous.public_url !== next.public_url) {
+          await replaceMediaUrl(siteId, item.previous.public_url, next.public_url);
         }
       }
     }
-    await removeStorageFiles(oldPaths);
-    onProgress?.({ stage: "complete", message: "Novo enquadramento aplicado.", completed: outputs.length, total: outputs.length });
+
     if (!primaryUrl) throw new AdminError("A versão principal não foi criada.", "MEDIA_PRIMARY_VARIANT_MISSING");
+
+    const oldPaths = pending
+      .map((item) => item.previous?.storage_path)
+      .filter((path): path is string => Boolean(path && path !== media.storage_path));
+    try {
+      await removeStorageFiles(oldPaths);
+    } catch (error) {
+      const normalized = normalizeAdminError(error, {
+        code: "STORAGE_OLD_VARIANT_CLEANUP_FAILED",
+        message: "O novo enquadramento foi aplicado, mas uma versão antiga não pôde ser removida.",
+      });
+      reportAdminError("media-reframe-old-cleanup", error, normalized);
+    }
+
+    onProgress?.({ stage: "complete", message: "Novo enquadramento aplicado.", completed: outputs.length, total: outputs.length });
     return primaryUrl;
   } catch (error) {
-    try {
-      await removeStorageFiles(newPaths);
-    } catch (cleanupError) {
-      const normalized = normalizeAdminError(cleanupError, {
-        code: "STORAGE_CLEANUP_FAILED",
-        message: "Não foi possível limpar as versões incompletas.",
-      });
-      reportAdminError("media-reframe-cleanup", cleanupError, normalized);
+    if (!databaseChanged) {
+      try {
+        await removeStorageFiles(pending.map((item) => item.stored.storagePath));
+      } catch (cleanupError) {
+        const normalized = normalizeAdminError(cleanupError, {
+          code: "STORAGE_CLEANUP_FAILED",
+          message: "Não foi possível limpar as versões incompletas.",
+        });
+        reportAdminError("media-reframe-cleanup", cleanupError, normalized);
+      }
     }
     throw error;
   }
@@ -237,6 +280,14 @@ export async function deleteMediaPermanently(media: MediaRecord): Promise<void> 
   const usage: MediaUsageReference[] = await loadMediaUsage(media.id);
   if (usage.length > 0) throw new AdminError("Esta mídia voltou a ser usada e não pode ser excluída.", "MEDIA_IN_USE");
   const paths = [media.storage_path, ...media.variants.map((variant) => variant.storage_path)];
-  await removeStorageFiles(paths);
   await deleteMediaMetadata(media.id);
+  try {
+    await removeStorageFiles(paths);
+  } catch (error) {
+    const normalized = normalizeAdminError(error, {
+      code: "STORAGE_ORPHAN_CLEANUP_FAILED",
+      message: "A mídia foi removida da biblioteca, mas alguns arquivos precisam de limpeza no armazenamento.",
+    });
+    reportAdminError("media-permanent-delete-cleanup", error, normalized);
+  }
 }
