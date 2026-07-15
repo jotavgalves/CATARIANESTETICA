@@ -1,5 +1,5 @@
-import { AdminError, normalizeAdminError } from "./errors";
-import { storeMediaFile } from "./repository";
+import { AdminError, normalizeAdminError, reportAdminError } from "./errors";
+import { registerMediaFile, removeStorageFile, uploadStorageFile } from "./repository";
 
 const SOURCE_FILE_LIMIT = 30 * 1024 * 1024;
 const UPLOAD_FILE_LIMIT = 5 * 1024 * 1024;
@@ -246,14 +246,30 @@ export async function uploadMedia(
   const prepared = await prepareImage(file, category);
 
   onProgress?.({ stage: "uploading", message: `Enviando ${formatByteSize(prepared.file.size)}…` });
-  const stored = await storeMediaFile(siteId, {
-    file: prepared.file,
-    originalName: file.name,
-    category,
-    altText,
-  });
+  const stored = await uploadStorageFile(siteId, prepared.file, category);
 
-  onProgress?.({ stage: "registering", message: "Registrando na biblioteca…" });
+  try {
+    onProgress?.({ stage: "registering", message: "Registrando na biblioteca…" });
+    await registerMediaFile(siteId, stored, {
+      originalName: file.name,
+      mimeType: prepared.file.type,
+      sizeBytes: prepared.file.size,
+      category,
+      altText,
+    });
+  } catch (registrationError) {
+    try {
+      await removeStorageFile(stored.storagePath);
+    } catch (cleanupError) {
+      const normalizedCleanup = normalizeAdminError(cleanupError, {
+        code: "STORAGE_CLEANUP_FAILED",
+        message: "Não foi possível remover um arquivo incompleto do armazenamento.",
+      });
+      reportAdminError("media-cleanup", cleanupError, normalizedCleanup);
+    }
+    throw registrationError;
+  }
+
   const result: MediaUploadResult = {
     publicUrl: stored.publicUrl,
     storagePath: stored.storagePath,
