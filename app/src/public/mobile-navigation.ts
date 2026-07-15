@@ -41,7 +41,7 @@ export function initializeMobileNavigation(): void {
     document.body.classList.remove("menu-open");
     button.setAttribute("aria-expanded", "false");
     button.setAttribute("aria-label", "Abrir menu");
-    if (restoreScroll) window.scrollTo({ top: savedScrollY, behavior: "instant" });
+    if (restoreScroll) window.scrollTo({ top: savedScrollY, behavior: "auto" });
   };
 
   const openMenu = (): void => {
