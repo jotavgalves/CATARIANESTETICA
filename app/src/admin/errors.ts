@@ -14,6 +14,11 @@ interface ErrorRecord {
   name?: unknown;
 }
 
+const defaultFallback: AdminErrorFallback = {
+  code: "ADMIN_OPERATION_FAILED",
+  message: "Não foi possível concluir esta operação.",
+};
+
 export class AdminError extends Error {
   readonly code: string;
   readonly field: string | undefined;
@@ -110,19 +115,20 @@ function mappedError(error: unknown): AdminError | null {
   return null;
 }
 
-export function normalizeAdminError(error: unknown, fallback: AdminErrorFallback): AdminError {
+export function normalizeAdminError(error: unknown, fallback?: AdminErrorFallback): AdminError {
   if (error instanceof AdminError) return error;
 
   const mapped = mappedError(error);
   if (mapped) return mapped;
 
+  const safeFallback = fallback ?? defaultFallback;
   const record = asRecord(error);
   const rawMessage = error instanceof Error ? error.message.trim() : text(record.message);
   if (rawMessage && rawMessage !== "Error") {
-    return new AdminError(rawMessage.replace(/\s*Código:\s*[A-Z0-9_-]+\.?$/i, ""), fallback.code, fallback.field);
+    return new AdminError(rawMessage.replace(/\s*Código:\s*[A-Z0-9_-]+\.?$/i, ""), safeFallback.code, safeFallback.field);
   }
 
-  return new AdminError(fallback.message, fallback.code, fallback.field);
+  return new AdminError(safeFallback.message, safeFallback.code, safeFallback.field);
 }
 
 export function formatAdminError(error: AdminError): string {
