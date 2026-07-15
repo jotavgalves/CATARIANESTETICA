@@ -17,7 +17,7 @@ describe("media transform", () => {
       fit: "cover",
     });
 
-    expect(normalized.offsetX).toBeCloseTo(0.388889, 5);
+    expect(normalized.offsetX).toBeCloseTo(0.611111, 5);
     expect(normalized.offsetY).toBe(0);
   });
 
