@@ -11,7 +11,7 @@ function normalizeField(field: SectionField, value: unknown): unknown {
     const rows = Array.isArray(value) ? value : [];
     return rows
       .filter((row): row is Record<string, unknown> => Boolean(row) && typeof row === "object" && !Array.isArray(row))
-      .map((row) => Object.fromEntries(field.fields.map((child) => [child.key, stringValue(row[child.key])])));
+      .map((row) => Object.fromEntries(field.fields.map((child) => [child.key, stringValue(row[child.key])] )));
   }
   return stringValue(value);
 }
@@ -26,7 +26,7 @@ function indexedValue(data: FormData, name: string): string {
   return typeof value === "string" ? value.trim() : "";
 }
 
-function serializeRepeater(data: FormData, sectionKey: string, field: RepeaterSectionField): JsonObject[] {
+function serializeRepeater(data: FormData, field: RepeaterSectionField): JsonObject[] {
   const countValue = Number(indexedValue(data, `content.${field.key}.__count`));
   const count = Number.isInteger(countValue) && countValue >= 0 ? countValue : 0;
   const rows: JsonObject[] = [];
@@ -68,7 +68,7 @@ export function serializeSectionContent(sectionKey: string, form: HTMLFormElemen
 
   for (const field of schema.fields) {
     if (field.type === "repeater") {
-      content[field.key] = serializeRepeater(data, sectionKey, field);
+      content[field.key] = serializeRepeater(data, field);
       continue;
     }
     const current = indexedValue(data, `content.${field.key}`);
