@@ -184,8 +184,8 @@ async function encodeImage(drawable: DrawableImage, file: File, category: string
       quality = Math.max(MIN_QUALITY, quality - 0.08);
     } else {
       dimensions = {
-        width: Math.max(640, Math.round(dimensions.width * 0.84)),
-        height: Math.max(640, Math.round(dimensions.height * 0.84)),
+        width: Math.max(1, Math.round(dimensions.width * 0.84)),
+        height: Math.max(1, Math.round(dimensions.height * 0.84)),
       };
       quality = 0.82;
     }
