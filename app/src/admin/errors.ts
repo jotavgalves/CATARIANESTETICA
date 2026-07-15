@@ -27,7 +27,7 @@ export class AdminError extends Error {
 }
 
 function asRecord(error: unknown): ErrorRecord {
-  return typeof error === "object" && error !== null ? error as ErrorRecord : {};
+  return typeof error === "object" && error !== null ? error : {};
 }
 
 function text(value: unknown): string {
