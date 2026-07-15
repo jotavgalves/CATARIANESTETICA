@@ -25,6 +25,8 @@ import {
   type EditableTable,
   type Membership,
 } from "./repository";
+import { serializeSectionContent } from "./section-content";
+import { handleSectionEditorClick } from "./section-controller";
 
 function requiredElement<T extends Element>(selector: string): T {
   const element = document.querySelector<T>(selector);
@@ -235,7 +237,6 @@ async function submitLogin(form: HTMLFormElement): Promise<void> {
   const email = value(data, "email");
   const password = String(data.get("password") ?? "");
   if (!email || !password) throw new Error("Informe o e-mail e a senha.");
-
   setLoginMessage("Validando acesso…", false, email);
   await signInWithPassword(email, password);
   await initializeAuthenticatedOnce();
@@ -245,13 +246,11 @@ async function submitPasswordRecovery(): Promise<void> {
   const emailInput = root.querySelector<HTMLInputElement>('input[name="email"]');
   const email = emailInput?.value.trim() ?? "";
   if (!email) throw new Error("Informe o e-mail antes de solicitar a recuperação.");
-
   const remaining = recoveryMinutesRemaining();
   if (remaining > 0) {
     setLoginMessage(`Um e-mail já foi solicitado. Aguarde ${remaining} minuto${remaining === 1 ? "" : "s"}.`, true, email);
     return;
   }
-
   setLoginMessage("Enviando recuperação de senha…", false, email);
   await requestPasswordReset(email);
   setLoginMessage("E-mail enviado. Use o link recebido para definir uma nova senha.", false, email);
@@ -301,16 +300,8 @@ async function submitHero(form: HTMLFormElement): Promise<void> {
 async function submitSection(form: HTMLFormElement): Promise<void> {
   if (!state) return;
   const data = new FormData(form);
-  let content: JsonObject;
-  try {
-    content = JSON.parse(value(data, "content")) as JsonObject;
-  } catch {
-    throw new AdminError(
-      "O conteúdo avançado desta seção não possui um JSON válido.",
-      "CMS_SECTION_JSON_INVALID",
-      "content",
-    );
-  }
+  const sectionKey = value(data, "section_key");
+  const content = serializeSectionContent(sectionKey, form);
   await saveSection(state.membership.siteId, value(data, "id"), {
     eyebrow: value(data, "eyebrow"),
     title: value(data, "title"),
@@ -327,13 +318,7 @@ async function submitProcedure(form: HTMLFormElement): Promise<void> {
   const data = new FormData(form);
   const name = value(data, "name");
   const slug = value(data, "slug") || slugify(name);
-  if (!slug) {
-    throw new AdminError(
-      "Informe um nome válido para gerar o identificador.",
-      "CMS_PROCEDURE_SLUG_EMPTY",
-      "name",
-    );
-  }
+  if (!slug) throw new AdminError("Informe um nome válido para gerar o identificador.", "CMS_PROCEDURE_SLUG_EMPTY", "name");
   await upsertRecord("cq_procedures", state.membership.siteId, {
     name,
     slug,
@@ -357,13 +342,7 @@ async function submitResult(form: HTMLFormElement): Promise<void> {
   const data = new FormData(form);
   const isPublished = checked(form, "is_published");
   const hasConsent = checked(form, "consent_confirmed");
-  if (isPublished && !hasConsent) {
-    throw new AdminError(
-      "Confirme a autorização antes de publicar o resultado.",
-      "CONTENT_CONSENT_REQUIRED",
-      "consent_confirmed",
-    );
-  }
+  if (isPublished && !hasConsent) throw new AdminError("Confirme a autorização antes de publicar o resultado.", "CONTENT_CONSENT_REQUIRED", "consent_confirmed");
   await upsertRecord("cq_results", state.membership.siteId, {
     title: value(data, "title"),
     summary: value(data, "summary"),
@@ -387,13 +366,7 @@ async function submitTestimonial(form: HTMLFormElement): Promise<void> {
   const data = new FormData(form);
   const isPublished = checked(form, "is_published");
   const hasConsent = checked(form, "consent_confirmed");
-  if (isPublished && !hasConsent) {
-    throw new AdminError(
-      "Confirme a autorização antes de publicar o depoimento.",
-      "CONTENT_CONSENT_REQUIRED",
-      "consent_confirmed",
-    );
-  }
+  if (isPublished && !hasConsent) throw new AdminError("Confirme a autorização antes de publicar o depoimento.", "CONTENT_CONSENT_REQUIRED", "consent_confirmed");
   await upsertRecord("cq_testimonials", state.membership.siteId, {
     client_display_name: value(data, "client_display_name"),
     procedure_id: value(data, "procedure_id") || null,
@@ -514,6 +487,7 @@ root.addEventListener("click", (event) => {
     return;
   }
 
+  if (handleSectionEditorClick(target)) return;
   if (mediaController.handleClick(target)) return;
 
   if (target.closest("[data-sign-out]")) {
