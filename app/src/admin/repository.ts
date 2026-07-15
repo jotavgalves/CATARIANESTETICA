@@ -53,6 +53,11 @@ export interface VariantMediaInput {
   crop: MediaTransform;
 }
 
+export interface CommittedMediaVariant extends VariantMediaInput {
+  storagePath: string;
+  publicUrl: string;
+}
+
 interface ClaimedMembership {
   site_id: string;
   role: "owner" | "editor";
@@ -242,26 +247,31 @@ export async function createMediaVariant(
   return data as MediaVariantRecord;
 }
 
-export async function replaceMediaVariant(
+export async function commitMediaVariants(
   siteId: string,
   mediaId: string,
-  stored: StoredMediaObject,
-  variant: VariantMediaInput,
-): Promise<MediaVariantRecord> {
-  const { data, error } = await supabase.from("cq_media_variants").upsert({
-    site_id: siteId,
-    media_id: mediaId,
-    slot_key: variant.slotKey,
-    storage_path: stored.storagePath,
-    public_url: stored.publicUrl,
-    width: variant.width,
-    height: variant.height,
-    mime_type: variant.mimeType,
-    size_bytes: variant.sizeBytes,
-    crop: variant.crop,
-  }, { onConflict: "media_id,slot_key" }).select(tableColumns).single();
-  if (error || !data) throw dataError(error, "MEDIA_VARIANT_UPDATE_FAILED", "Não foi possível registrar o novo enquadramento.");
-  return data as MediaVariantRecord;
+  variants: CommittedMediaVariant[],
+  oldUrl?: string,
+  newUrl?: string,
+): Promise<MediaVariantRecord[]> {
+  const { data, error } = await supabase.rpc("cq_commit_media_variants", {
+    p_site_id: siteId,
+    p_media_id: mediaId,
+    p_variants: variants.map((variant) => ({
+      slot_key: variant.slotKey,
+      storage_path: variant.storagePath,
+      public_url: variant.publicUrl,
+      width: variant.width,
+      height: variant.height,
+      mime_type: variant.mimeType,
+      size_bytes: variant.sizeBytes,
+      crop: variant.crop,
+    })),
+    p_old_url: oldUrl ?? null,
+    p_new_url: newUrl ?? null,
+  });
+  if (error) throw dataError(error, "MEDIA_VARIANTS_COMMIT_FAILED", "Não foi possível confirmar as novas versões da mídia.");
+  return Array.isArray(data) ? data as MediaVariantRecord[] : [];
 }
 
 export async function removeStorageFiles(storagePaths: string[]): Promise<void> {
@@ -295,14 +305,4 @@ export async function restoreMedia(mediaId: string): Promise<void> {
 export async function deleteMediaMetadata(mediaId: string): Promise<void> {
   const { error } = await supabase.rpc("cq_delete_media_metadata", { p_media_id: mediaId });
   if (error) throw dataError(error, "MEDIA_DELETE_METADATA_FAILED", "Os arquivos foram removidos, mas não foi possível limpar a biblioteca.");
-}
-
-export async function replaceMediaUrl(siteId: string, oldUrl: string, newUrl: string): Promise<number> {
-  const { data, error } = await supabase.rpc("cq_replace_media_url", {
-    p_site_id: siteId,
-    p_old_url: oldUrl,
-    p_new_url: newUrl,
-  });
-  if (error) throw dataError(error, "MEDIA_REFERENCE_REPLACE_FAILED", "O novo enquadramento foi criado, mas não pôde ser aplicado aos locais em uso.");
-  return typeof data === "number" ? data : 0;
 }
