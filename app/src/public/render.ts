@@ -35,6 +35,25 @@ function whatsapp(number: string, message: string): string {
   return `https://wa.me/${number.replace(/\D/g, "")}?text=${encodeURIComponent(message)}`;
 }
 
+function googleMapsEmbedUrl(value: unknown): string {
+  const raw = String(value ?? "").trim();
+  if (!raw) return "";
+  const sourceMatch = raw.match(/src\s*=\s*["']([^"']+)["']/i);
+  const candidate = (sourceMatch?.[1] ?? raw).replaceAll("&amp;", "&").trim();
+
+  try {
+    const parsed = new URL(candidate);
+    const hostname = parsed.hostname.toLowerCase();
+    const googleDomains = ["google.com", "google.com.br"];
+    const isGoogleMaps = googleDomains.some((domain) => hostname === domain || hostname.endsWith(`.${domain}`))
+      && parsed.pathname.startsWith("/maps");
+    if (parsed.protocol !== "https:" || !isGoogleMaps) return "";
+    return esc(parsed.toString());
+  } catch {
+    return "";
+  }
+}
+
 function infoIcon(kind: "pin" | "clock" | "shield"): string {
   const body = {
     pin: '<path d="M12 21s6.4-5.7 6.4-11.5a6.4 6.4 0 1 0-12.8 0C5.6 15.3 12 21 12 21Z"/><circle cx="12" cy="9.5" r="2.2"/>',
@@ -95,6 +114,12 @@ export function renderPublicSite(data: PublicSitePayload): string {
   const aboutImage = url(about?.content.image_url);
   const processImage = url(process?.content.image_url) || "https://images.unsplash.com/photo-1570172619644-dfd03ed5d881?auto=format&fit=crop&w=1400&q=85";
   const processSecondary = url(process?.content.secondary_image_url) || "https://images.unsplash.com/photo-1540555700478-4be289fbecef?auto=format&fit=crop&w=800&q=85";
+  const locationImage = url(location?.content.image_url) || "https://images.unsplash.com/photo-1519494026892-80bbd2d6fd0d?auto=format&fit=crop&w=1400&q=85";
+  const locationMap = googleMapsEmbedUrl(location?.content.map_embed);
+  const locationMediaType = String(location?.content.media_type ?? "image") === "map" ? "map" : "image";
+  const locationMedia = locationMediaType === "map" && locationMap
+    ? `<iframe src="${locationMap}" title="Mapa da clínica" width="100%" height="500" loading="lazy" referrerpolicy="no-referrer-when-downgrade" frameborder="0" allowfullscreen></iframe>`
+    : `<img src="${locationImage}" alt="Ambiente da clínica" loading="lazy">`;
 
   const procedureCards = data.procedures.map((item) => `
     <article class="procedure-card">
@@ -126,7 +151,7 @@ export function renderPublicSite(data: PublicSitePayload): string {
       ${data.results.length > 0 ? `<section class="section section-soft" id="results"><div class="container"><div class="section-heading"><p class="eyebrow">${esc(results?.eyebrow)}</p><h2>${esc(results?.title)}</h2><p class="lead">${esc(results?.subtitle)}</p></div><div class="case-list">${resultCards}</div></div></section>` : ""}
       ${data.testimonials.length > 0 ? `<section class="section" id="testimonials"><div class="container"><div class="section-heading"><p class="eyebrow">Experiências</p><h2>Relatos de atendimento</h2></div><div class="testimonial-grid">${testimonialCards}</div></div></section>` : ""}
       <section class="section" id="faq"><div class="container faq-layout"><div class="sticky-copy"><p class="eyebrow">${esc(faq?.eyebrow)}</p><h2>${esc(faq?.title)}</h2><p class="lead">${esc(faq?.subtitle)}</p></div><div class="faq-list">${data.faq.map((item, index) => `<article class="faq-item${index === 0 ? " is-open" : ""}"><button class="faq-question" type="button" aria-expanded="${index === 0 ? "true" : "false"}"><span>${esc(item.question)}</span><span class="faq-toggle">+</span></button><div class="faq-answer"><p>${esc(item.answer)}</p></div></article>`).join("")}</div></div></section>
-      <section class="section" id="location"><div class="container"><div class="location-card"><div class="location-copy"><p class="eyebrow">${esc(location?.eyebrow)}</p><h2>${esc(location?.title)}</h2><div class="location-list"><p><strong>Endereço:</strong> ${esc(settings.address_line)}, ${esc(city)}</p><p><strong>Atendimento:</strong> ${esc(settings.opening_hours)}</p><p><strong>Contato:</strong> ${esc(settings.phone)}</p></div><div class="hero-actions"><a class="button button-light" href="${whatsappUrl}" target="_blank" rel="noopener" data-track="click_whatsapp" data-placement="location">${whatsappIcon}<span>Agendar atendimento</span></a><a class="button button-outline button-on-dark" href="${url(settings.maps_url)}" target="_blank" rel="noopener" data-track="click_map">Traçar rota</a></div></div><div class="location-media"><img src="https://images.unsplash.com/photo-1519494026892-80bbd2d6fd0d?auto=format&fit=crop&w=1400&q=85" alt="Interior de uma clínica" loading="lazy"></div></div></div></section>
+      <section class="section" id="location"><div class="container"><div class="location-card"><div class="location-copy"><p class="eyebrow">${esc(location?.eyebrow)}</p><h2>${esc(location?.title)}</h2><div class="location-list"><p><strong>Endereço:</strong> ${esc(settings.address_line)}, ${esc(city)}</p><p><strong>Atendimento:</strong> ${esc(settings.opening_hours)}</p><p><strong>Contato:</strong> ${esc(settings.phone)}</p></div><div class="hero-actions"><a class="button button-light" href="${whatsappUrl}" target="_blank" rel="noopener" data-track="click_whatsapp" data-placement="location">${whatsappIcon}<span>Agendar atendimento</span></a><a class="button button-outline button-on-dark" href="${url(settings.maps_url)}" target="_blank" rel="noopener" data-track="click_map">Traçar rota</a></div></div><div class="location-media">${locationMedia}</div></div></div></section>
     </main>
     <footer class="site-footer"><div class="container footer-grid"><section class="footer-brand">${brand}<p class="footer-description">${esc(settings.seo_description)}</p></section><nav class="footer-column" aria-label="Navegação do rodapé"><strong class="footer-heading">Navegação</strong><div class="footer-links">${navigation}</div></nav><address class="footer-column footer-contact"><strong class="footer-heading">Contato</strong><a href="tel:${esc(settings.phone.replace(/\D/g, ""))}" data-track="click_phone">${esc(settings.phone)}</a><a class="footer-whatsapp" href="${whatsappUrl}" target="_blank" rel="noopener" data-track="click_whatsapp" data-placement="footer">${whatsappIcon}<span>WhatsApp</span></a><span class="footer-address">${esc(settings.address_line)}<br>${esc(city)}</span></address></div><div class="container footer-bottom"><span>© ${new Date().getFullYear()} ${esc(data.site.name)}</span><span>${esc(settings.footer_text)}</span></div></footer>
     <a class="whatsapp-float" href="${whatsappUrl}" target="_blank" rel="noopener" aria-label="Falar com a clínica pelo WhatsApp" data-track="click_whatsapp" data-placement="floating-button">${whatsappIcon}</a>`;
