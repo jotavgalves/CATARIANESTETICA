@@ -70,7 +70,7 @@ function robotsTxt(canonicalUrl) {
 export async function onRequest(context) {
   if (context.request.method !== "GET") return context.next();
 
-  const requestUrl = new URL(context.request.url);
+  const requestUrl = new globalThis.URL(context.request.url);
   const hostname = requestUrl.hostname.toLowerCase();
   const data = await loadSite(context.env, hostname);
 
@@ -113,7 +113,7 @@ export async function onRequest(context) {
   const sourceHtml = await assetResponse.text();
   const withSeo = replaceSeoBlock(sourceHtml, renderSeoHead(snapshot));
   const html = replaceSiteRoot(withSeo, renderPublicSite(data));
-  const headers = new Headers(assetResponse.headers);
+  const headers = new globalThis.Headers(assetResponse.headers);
   headers.set("content-type", "text/html; charset=utf-8");
   headers.set("link", `<${snapshot.canonicalUrl}>; rel="canonical"`);
   if (snapshot.robots.startsWith("noindex")) headers.set("x-robots-tag", "noindex, follow");
