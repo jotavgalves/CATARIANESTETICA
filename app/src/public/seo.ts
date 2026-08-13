@@ -1,5 +1,7 @@
 import type { PublicSitePayload } from "../lib/types";
 
+const PRIMARY_CANONICAL_ORIGIN = "https://catarinaqueiroz.com.br";
+
 export interface SeoSnapshot {
   canonicalUrl: string;
   canonicalHost: string;
@@ -125,8 +127,7 @@ export function buildSeoSnapshot(
   verificationToken = "",
 ): SeoSnapshot {
   const currentOriginNormalized = originFrom(currentOrigin);
-  const canonicalOrigin = originFrom(data.site.default_domain) || currentOriginNormalized || "https://dracatarinaqueiroz.pages.dev";
-  const canonicalUrl = `${canonicalOrigin}/`;
+  const canonicalUrl = `${PRIMARY_CANONICAL_ORIGIN}/`;
   const canonicalHost = new URL(canonicalUrl).hostname.toLowerCase();
   const currentHost = currentOriginNormalized ? new URL(currentOriginNormalized).hostname.toLowerCase() : canonicalHost;
   const isPrimaryHost = currentHost === canonicalHost;
