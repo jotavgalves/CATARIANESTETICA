@@ -113,17 +113,17 @@ export const sectionSchemas: Record<string, SectionSchema> = {
   location: {
     key: "location",
     label: "Localização",
-    description: "Escolha se o card de atendimento mostra uma foto enviada ou um mapa incorporado do Google Maps.",
+    description: "Ligue a foto para exibi-la no card. Desligue a foto para mostrar o Google Maps no mesmo espaço.",
     fields: [
       {
         key: "media_type",
-        label: "Mídia do card de atendimento",
+        label: "Foto do card",
         type: "select",
         required: true,
-        help: "Escolha Foto para usar uma imagem enviada pelo painel ou Google Maps para incorporar o mapa.",
+        help: "Foto ligada mostra a imagem enviada. Foto desligada mostra o mapa incorporado abaixo.",
         options: [
-          { value: "image", label: "Foto" },
-          { value: "map", label: "Google Maps" },
+          { value: "image", label: "Ligada — mostrar a foto" },
+          { value: "map", label: "Desligada — mostrar Google Maps" },
         ],
       },
       {
@@ -131,13 +131,13 @@ export const sectionSchemas: Record<string, SectionSchema> = {
         label: "Foto do card de atendimento",
         type: "media",
         slot: "section_landscape",
-        help: "Esta imagem aparece quando a opção Foto está selecionada.",
+        help: "A foto fica salva mesmo quando estiver desligada. Você pode ligá-la novamente quando quiser.",
       },
       {
         key: "map_embed",
         label: "Iframe do Google Maps",
         type: "textarea",
-        help: "Cole o código de incorporação gerado em Google Maps > Compartilhar > Incorporar um mapa, ou somente a URL do atributo src.",
+        help: "Cole o código de incorporação do Google Maps ou somente a URL de incorporação.",
       },
     ],
   },
