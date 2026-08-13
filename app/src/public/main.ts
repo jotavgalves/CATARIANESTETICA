@@ -19,6 +19,8 @@ const defaultConsent: ConsentState = {
   updatedAt: new Date().toISOString(),
 };
 
+let contentProtectionInitialized = false;
+
 async function loadSite(identifier: string): Promise<PublicSitePayload> {
   const { data, error } = await supabase.rpc("cq_get_public_site", { p_identifier: identifier });
   if (error) throw error;
@@ -45,6 +47,22 @@ function initializeBrandLogos(): void {
       if (image.naturalWidth > 0) showLogo();
       else showFallback();
     }
+  });
+}
+
+function initializeContentProtection(): void {
+  if (contentProtectionInitialized) return;
+  contentProtectionInitialized = true;
+
+  document.addEventListener("contextmenu", (event) => event.preventDefault());
+  document.addEventListener("dragstart", (event) => {
+    const target = event.target;
+    if (target instanceof HTMLImageElement || (target instanceof Element && target.closest("img"))) {
+      event.preventDefault();
+    }
+  });
+  document.querySelectorAll<HTMLImageElement>("img").forEach((image) => {
+    image.draggable = false;
   });
 }
 
@@ -108,6 +126,7 @@ async function start(): Promise<void> {
     root.innerHTML = renderPublicSite(data);
     initializeResponsiveMedia(data);
     initializeBrandLogos();
+    initializeContentProtection();
     initializeMobileNavigation();
 
     const analytics = new AnalyticsService(siteIdentifier, data.tracking, readConsent() ?? defaultConsent);
