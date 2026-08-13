@@ -1,6 +1,6 @@
 import type { MediaSlotKey } from "./media-schema";
 
-export type SectionFieldType = "text" | "textarea" | "media" | "repeater";
+export type SectionFieldType = "text" | "textarea" | "media" | "select" | "repeater";
 
 interface BaseSectionField {
   key: string;
@@ -19,6 +19,11 @@ export interface MediaSectionField extends BaseSectionField {
   slot: MediaSlotKey;
 }
 
+export interface SelectSectionField extends BaseSectionField {
+  type: "select";
+  options: Array<{ value: string; label: string }>;
+}
+
 export interface RepeaterSectionField extends BaseSectionField {
   type: "repeater";
   itemLabel: string;
@@ -26,7 +31,7 @@ export interface RepeaterSectionField extends BaseSectionField {
   fields: Array<TextSectionField | MediaSectionField>;
 }
 
-export type SectionField = TextSectionField | MediaSectionField | RepeaterSectionField;
+export type SectionField = TextSectionField | MediaSectionField | SelectSectionField | RepeaterSectionField;
 
 export interface SectionSchema {
   key: string;
@@ -108,8 +113,33 @@ export const sectionSchemas: Record<string, SectionSchema> = {
   location: {
     key: "location",
     label: "Localização",
-    description: "Endereço, mapa e horários são definidos nas configurações do site.",
-    fields: [],
+    description: "Escolha se o card de atendimento mostra uma foto enviada ou um mapa incorporado do Google Maps.",
+    fields: [
+      {
+        key: "media_type",
+        label: "Mídia do card de atendimento",
+        type: "select",
+        required: true,
+        help: "Escolha Foto para usar uma imagem enviada pelo painel ou Google Maps para incorporar o mapa.",
+        options: [
+          { value: "image", label: "Foto" },
+          { value: "map", label: "Google Maps" },
+        ],
+      },
+      {
+        key: "image_url",
+        label: "Foto do card de atendimento",
+        type: "media",
+        slot: "section_landscape",
+        help: "Esta imagem aparece quando a opção Foto está selecionada.",
+      },
+      {
+        key: "map_embed",
+        label: "Iframe do Google Maps",
+        type: "textarea",
+        help: "Cole o código de incorporação gerado em Google Maps > Compartilhar > Incorporar um mapa, ou somente a URL do atributo src.",
+      },
+    ],
   },
 };
 

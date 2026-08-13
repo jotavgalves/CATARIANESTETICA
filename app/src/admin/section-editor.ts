@@ -1,7 +1,13 @@
 import type { JsonObject, SectionRecord } from "../lib/types";
 import { getMediaSlot } from "./media-schema";
 import { normalizeSectionContent } from "./section-content";
-import { getSectionSchema, type MediaSectionField, type RepeaterSectionField, type SectionField } from "./section-schema";
+import {
+  getSectionSchema,
+  type MediaSectionField,
+  type RepeaterSectionField,
+  type SectionField,
+  type SelectSectionField,
+} from "./section-schema";
 
 const escapeHtml = (value: unknown): string => String(value ?? "")
   .replaceAll("&", "&amp;")
@@ -14,12 +20,30 @@ function safeId(value: string): string {
   return value.replace(/[^a-z0-9_-]+/gi, "-");
 }
 
-function textField(name: string, label: string, value: unknown, textarea = false, required = false): string {
+function textField(
+  name: string,
+  label: string,
+  value: unknown,
+  textarea = false,
+  required = false,
+  help = "",
+): string {
   const id = safeId(name);
   const control = textarea
     ? `<textarea id="${id}" name="${escapeHtml(name)}"${required ? " required" : ""}>${escapeHtml(value)}</textarea>`
     : `<input id="${id}" name="${escapeHtml(name)}" type="text" value="${escapeHtml(value)}"${required ? " required" : ""}>`;
-  return `<div class="field field-full" data-field-name="${escapeHtml(name)}"><label for="${id}">${escapeHtml(label)}</label>${control}</div>`;
+  return `<div class="field field-full" data-field-name="${escapeHtml(name)}"><label for="${id}">${escapeHtml(label)}</label>${control}${help ? `<small class="field-help">${escapeHtml(help)}</small>` : ""}</div>`;
+}
+
+function selectField(field: SelectSectionField, value: unknown): string {
+  const name = `content.${field.key}`;
+  const id = safeId(name);
+  const current = String(value ?? "");
+  const resolved = field.options.some((option) => option.value === current)
+    ? current
+    : field.options[0]?.value ?? "";
+  const options = field.options.map((option) => `<option value="${escapeHtml(option.value)}"${option.value === resolved ? " selected" : ""}>${escapeHtml(option.label)}</option>`).join("");
+  return `<div class="field field-full" data-field-name="${escapeHtml(name)}"><label for="${id}">${escapeHtml(field.label)}</label><select id="${id}" name="${escapeHtml(name)}"${field.required ? " required" : ""}>${options}</select>${field.help ? `<small class="field-help">${escapeHtml(field.help)}</small>` : ""}</div>`;
 }
 
 function uploadFeedback(): string {
@@ -37,7 +61,7 @@ function repeaterRow(field: RepeaterSectionField, row: JsonObject, index: number
   const prefix = `content.${field.key}.${index}`;
   const controls = field.fields.map((child) => child.type === "media"
     ? mediaField(child, row[child.key], prefix)
-    : textField(`${prefix}.${child.key}`, child.label, row[child.key], child.type === "textarea", child.required)).join("");
+    : textField(`${prefix}.${child.key}`, child.label, row[child.key], child.type === "textarea", child.required, child.help)).join("");
   return `<article class="section-repeater-item" data-section-repeater-item><header><strong>${escapeHtml(field.itemLabel)} ${index + 1}</strong><div class="section-repeater-actions"><button class="button button-outline button-small" type="button" data-section-item-up aria-label="Mover para cima">↑</button><button class="button button-outline button-small" type="button" data-section-item-down aria-label="Mover para baixo">↓</button><button class="button button-outline button-small" type="button" data-section-item-duplicate>Duplicar</button><button class="button button-danger button-small" type="button" data-section-item-remove>Excluir</button></div></header><div class="form-grid">${controls}</div></article>`;
 }
 
@@ -50,7 +74,8 @@ function repeaterField(field: RepeaterSectionField, value: unknown): string {
 function renderField(field: SectionField, content: JsonObject): string {
   if (field.type === "repeater") return repeaterField(field, content[field.key]);
   if (field.type === "media") return mediaField(field, content[field.key]);
-  return textField(`content.${field.key}`, field.label, content[field.key], field.type === "textarea", field.required);
+  if (field.type === "select") return selectField(field, content[field.key]);
+  return textField(`content.${field.key}`, field.label, content[field.key], field.type === "textarea", field.required, field.help);
 }
 
 export function renderSectionEditor(section: SectionRecord): string {
