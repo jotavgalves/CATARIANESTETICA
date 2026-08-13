@@ -20,7 +20,7 @@ function safeUrl(value: unknown): string {
 
 export function initializeFavicons(data: PublicSitePayload): void {
   const assets = data.media_assets?.favicon ?? {};
-  const fallback = safeUrl(data.settings.favicon_url);
+  const fallback = safeUrl(data.settings.favicon_url) || "/favicon.svg";
   document.head.querySelectorAll<HTMLLinkElement>('link[rel="icon"], link[rel="apple-touch-icon"]')
     .forEach((link) => link.remove());
 
@@ -42,6 +42,7 @@ export function initializeFavicons(data: PublicSitePayload): void {
     const link = document.createElement("link");
     link.rel = "icon";
     link.href = fallback;
+    if (fallback.endsWith(".svg")) link.type = "image/svg+xml";
     link.dataset.generatedFavicon = "fallback";
     document.head.append(link);
   }

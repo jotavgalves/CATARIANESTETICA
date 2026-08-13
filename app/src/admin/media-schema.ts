@@ -52,7 +52,7 @@ export const mediaSlots: Record<MediaSlotKey, MediaSlotDefinition> = {
     maximumDimension: 1600,
     fit: "contain",
     acceptsSvg: true,
-    help: "SVG sanitizado, PNG ou WebP transparente. A proporção original é preservada.",
+    help: "SVG sanitizado permanece vetorial, sem conversão para PNG. PNG e WebP transparentes também são aceitos.",
   },
   favicon: {
     key: "favicon",

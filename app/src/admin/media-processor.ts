@@ -25,7 +25,6 @@ const forbiddenSvgElements = new Set([
   "audio",
   "video",
   "canvas",
-  "style",
   "animate",
   "animatemotion",
   "animatetransform",
@@ -120,6 +119,14 @@ function sanitizeSvgAttribute(element: Element, attribute: Attr): void {
   }
 }
 
+function sanitizeSvgStyleElement(element: Element): void {
+  const css = element.textContent ?? "";
+  const unsafeSyntax = /@import|expression\s*\(|behavior\s*:|javascript:|vbscript:|data:/i.test(css);
+  const unsafeUrl = Array.from(css.matchAll(/url\s*\(\s*(['"]?)(.*?)\1\s*\)/gi))
+    .some((match) => !String(match[2] ?? "").trim().startsWith("#"));
+  if (unsafeSyntax || unsafeUrl) element.remove();
+}
+
 async function sanitizeSvg(file: File): Promise<{ file: File; width: number; height: number }> {
   if (file.size > SVG_LIMIT) {
     throw new AdminError("O SVG excede 2 MB. Simplifique o arquivo antes de enviar.", "MEDIA_SVG_TOO_LARGE");
@@ -135,7 +142,12 @@ async function sanitizeSvg(file: File): Promise<{ file: File; width: number; hei
   }
 
   for (const element of Array.from(root.querySelectorAll("*"))) {
-    if (forbiddenSvgElements.has(element.localName.toLowerCase())) {
+    const localName = element.localName.toLowerCase();
+    if (localName === "style") {
+      sanitizeSvgStyleElement(element);
+      if (!element.isConnected) continue;
+    }
+    if (forbiddenSvgElements.has(localName)) {
       element.remove();
       continue;
     }
@@ -402,14 +414,15 @@ function proportionalSize(source: PreparedMediaSource, maximum: number): { width
 async function generateLogo(source: PreparedMediaSource, transform: MediaTransform): Promise<GeneratedMediaFile[]> {
   const logoTransform: MediaTransform = { ...transform, fit: "contain", zoom: 1, offsetX: 0, offsetY: 0 };
   if (source.isSvg) {
-    const fallbackSize = proportionalSize(source, 1200);
-    const normalized = normalizeMediaTransform(source, fallbackSize.width, fallbackSize.height, logoTransform);
-    const fallbackCanvas = renderMediaCanvas(source, fallbackSize.width, fallbackSize.height, normalized, true);
-    const fallback = await encodedRaster(fallbackCanvas, `${source.originalName}-fallback`, "image/png");
-    return [
-      { slotKey: "logo_header", file: source.file, width: source.width, height: source.height, primary: true, crop: normalized },
-      { slotKey: "logo_header_png", file: fallback, width: fallbackSize.width, height: fallbackSize.height, primary: false, crop: normalized },
-    ];
+    const normalized = normalizeMediaTransform(source, source.width, source.height, logoTransform);
+    return [{
+      slotKey: "logo_header",
+      file: source.file,
+      width: source.width,
+      height: source.height,
+      primary: true,
+      crop: normalized,
+    }];
   }
   const size = proportionalSize(source, 1600);
   const normalized = normalizeMediaTransform(source, size.width, size.height, logoTransform);
