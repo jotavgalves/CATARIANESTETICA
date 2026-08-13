@@ -1,3 +1,4 @@
+import { describe, expect, it } from "vitest";
 import type { PublicSitePayload } from "../src/lib/types";
 import { buildSeoSnapshot, renderSeoHead } from "../src/public/seo";
 
