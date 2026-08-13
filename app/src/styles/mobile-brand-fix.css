@@ -1,0 +1,44 @@
+@media (max-width: 430px) {
+  .nav-shell {
+    gap: 0.65rem;
+  }
+
+  .brand {
+    min-width: 0;
+    flex: 1 1 auto;
+  }
+
+  .brand-copy {
+    min-width: 0;
+    flex: 1 1 auto;
+  }
+
+  .brand-copy strong {
+    max-width: none;
+    overflow: visible;
+    text-overflow: clip;
+    white-space: nowrap;
+    font-size: clamp(0.82rem, 4vw, 0.98rem);
+    letter-spacing: 0.015em;
+  }
+
+  .menu-button {
+    flex: 0 0 auto;
+  }
+}
+
+@media (max-width: 350px) {
+  .brand {
+    gap: 0.55rem;
+  }
+
+  .brand-visual {
+    width: 2.25rem;
+    height: 2.25rem;
+  }
+
+  .brand-copy strong {
+    font-size: 0.78rem;
+    letter-spacing: 0.01em;
+  }
+}
