@@ -7,6 +7,7 @@ import { initializeFavicons } from "./favicon-assets";
 import { initializeMobileNavigation } from "./mobile-navigation";
 import { applyDocumentMetadata, renderPublicSite } from "./render";
 import { initializeResponsiveMedia } from "./responsive-media";
+import { initializeSeo } from "./seo";
 
 declare global {
   interface Window { __cqPublicAppInitialized?: boolean; }
@@ -122,6 +123,7 @@ async function start(): Promise<void> {
   try {
     const data = await loadSite(siteIdentifier);
     applyDocumentMetadata(data);
+    initializeSeo(data);
     initializeFavicons(data);
     root.innerHTML = renderPublicSite(data);
     initializeResponsiveMedia(data);
