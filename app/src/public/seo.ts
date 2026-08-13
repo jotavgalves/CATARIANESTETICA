@@ -3,6 +3,7 @@ import type { PublicSitePayload } from "../lib/types";
 export interface SeoSnapshot {
   canonicalUrl: string;
   canonicalHost: string;
+  siteName: string;
   title: string;
   description: string;
   imageUrl: string;
@@ -36,10 +37,6 @@ function escapeHtml(value: unknown): string {
     .replaceAll(">", "&gt;")
     .replaceAll('"', "&quot;")
     .replaceAll("'", "&#039;");
-}
-
-function nonEmpty<T>(items: Array<T | "" | null | undefined>): T[] {
-  return items.filter((item): item is T => Boolean(item));
 }
 
 function buildStructuredData(data: PublicSitePayload, canonicalUrl: string): Record<string, unknown> {
@@ -127,18 +124,21 @@ export function buildSeoSnapshot(
   currentOrigin: string,
   verificationToken = "",
 ): SeoSnapshot {
-  const canonicalOrigin = originFrom(data.site.default_domain) || originFrom(currentOrigin) || "https://dracatarinaqueiroz.pages.dev";
+  const currentOriginNormalized = originFrom(currentOrigin);
+  const canonicalOrigin = originFrom(data.site.default_domain) || currentOriginNormalized || "https://dracatarinaqueiroz.pages.dev";
   const canonicalUrl = `${canonicalOrigin}/`;
   const canonicalHost = new URL(canonicalUrl).hostname.toLowerCase();
-  const currentHost = originFrom(currentOrigin) ? new URL(originFrom(currentOrigin)).hostname.toLowerCase() : canonicalHost;
+  const currentHost = currentOriginNormalized ? new URL(currentOriginNormalized).hostname.toLowerCase() : canonicalHost;
   const isPrimaryHost = currentHost === canonicalHost;
-  const title = String(data.settings.seo_title || data.site.name).trim();
+  const siteName = String(data.site.name || data.settings.professional_name).trim();
+  const title = String(data.settings.seo_title || siteName).trim();
   const description = String(data.settings.seo_description || "").trim();
   const imageUrl = safeHttpUrl(data.settings.hero.image_url);
 
   return {
     canonicalUrl,
     canonicalHost,
+    siteName,
     title,
     description,
     imageUrl,
@@ -163,7 +163,7 @@ export function renderSeoHead(snapshot: SeoSnapshot): string {
     `<link rel="canonical" href="${escapeHtml(snapshot.canonicalUrl)}">`,
     `<meta property="og:type" content="website">`,
     `<meta property="og:locale" content="pt_BR">`,
-    `<meta property="og:site_name" content="${escapeHtml(snapshot.title)}">`,
+    `<meta property="og:site_name" content="${escapeHtml(snapshot.siteName)}">`,
     `<meta property="og:title" content="${escapeHtml(snapshot.title)}">`,
     `<meta property="og:description" content="${escapeHtml(snapshot.description)}">`,
     `<meta property="og:url" content="${escapeHtml(snapshot.canonicalUrl)}">`,
@@ -213,7 +213,7 @@ export function initializeSeo(data: PublicSitePayload): void {
   upsertMeta('meta[name="googlebot"]', "name", "googlebot", snapshot.robots);
   upsertMeta('meta[property="og:type"]', "property", "og:type", "website");
   upsertMeta('meta[property="og:locale"]', "property", "og:locale", "pt_BR");
-  upsertMeta('meta[property="og:site_name"]', "property", "og:site_name", data.site.name);
+  upsertMeta('meta[property="og:site_name"]', "property", "og:site_name", snapshot.siteName);
   upsertMeta('meta[property="og:title"]', "property", "og:title", snapshot.title);
   upsertMeta('meta[property="og:description"]', "property", "og:description", snapshot.description);
   upsertMeta('meta[property="og:url"]', "property", "og:url", snapshot.canonicalUrl);
