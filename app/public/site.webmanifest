@@ -2,7 +2,16 @@
   "name": "Catarina Queiroz Clínica Estética",
   "short_name": "Catarina Queiroz",
   "start_url": "/",
+  "scope": "/",
   "display": "standalone",
   "background_color": "#fffdfb",
-  "theme_color": "#4b342d"
+  "theme_color": "#4b342d",
+  "icons": [
+    {
+      "src": "/favicon.svg?v=3",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any"
+    }
+  ]
 }
