@@ -1,5 +1,3 @@
-import { runtimeConfig } from "../lib/config";
-import { supabase } from "../lib/supabase";
 import type { AnalyticsEventName, ConsentState, TrackingConfig } from "../lib/types";
 
 interface AnalyticsWindow extends Window {
@@ -131,6 +129,24 @@ export class AnalyticsService {
     );
   }
 
+  async #trackMetaServer(payload: Record<string, unknown>): Promise<void> {
+    try {
+      const response = await fetch("/api/track", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify(payload),
+        keepalive: true,
+      });
+      if (!response.ok) {
+        window.dispatchEvent(new CustomEvent("cq:tracking-error", { detail: `Cloudflare tracking ${response.status}` }));
+      }
+    } catch (error) {
+      window.dispatchEvent(new CustomEvent("cq:tracking-error", {
+        detail: error instanceof Error ? error.message : "Cloudflare tracking unavailable",
+      }));
+    }
+  }
+
   async track(eventName: AnalyticsEventName, context: TrackContext = {}): Promise<void> {
     if (!this.#consent.analytics && !this.#consent.marketing) return;
     const eventId = crypto.randomUUID();
@@ -173,11 +189,13 @@ export class AnalyticsService {
       fbp: cookie("_fbp"),
       fbc: cookie("_fbc"),
       gclid: query.get("gclid") ?? window.sessionStorage.getItem("cq-gclid") ?? "",
+      metaPixelId: this.#tracking.meta_pixel_id,
     };
 
     if (payload.gclid) window.sessionStorage.setItem("cq-gclid", payload.gclid);
 
-    const { error } = await supabase.functions.invoke(runtimeConfig.trackingFunction, { body: payload });
-    if (error) window.dispatchEvent(new CustomEvent("cq:tracking-error", { detail: error.message }));
+    if (this.#consent.marketing && this.#tracking.meta_server_enabled && this.#tracking.meta_pixel_id) {
+      await this.#trackMetaServer(payload);
+    }
   }
 }
