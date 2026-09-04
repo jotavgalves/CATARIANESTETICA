@@ -122,7 +122,8 @@ export class AnalyticsService {
     const ids: string[] = [];
     if (this.#tracking.ga4_browser_enabled && validGA(this.#tracking.ga4_measurement_id)) ids.push(this.#tracking.ga4_measurement_id.trim());
     if (this.#tracking.google_ads_browser_enabled && validAW(this.#tracking.google_ads_conversion_id)) ids.push(this.#tracking.google_ads_conversion_id.trim());
-    if (!ids.length) return;
+    const primaryId = ids[0];
+    if (!primaryId) return;
 
     analyticsWindow.gtag?.("js", new Date());
     ids.forEach((id) => {
@@ -132,7 +133,7 @@ export class AnalyticsService {
 
     const script = document.createElement("script");
     script.async = true;
-    script.src = `https://www.googletagmanager.com/gtag/js?id=${encodeURIComponent(ids[0])}`;
+    script.src = `https://www.googletagmanager.com/gtag/js?id=${encodeURIComponent(primaryId)}`;
     script.dataset.cqGoogleTag = "1";
     document.head.appendChild(script);
     analyticsWindow.__cqGooglePrepared = true;
