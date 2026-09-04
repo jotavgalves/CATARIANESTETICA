@@ -2,9 +2,19 @@ import type { AnalyticsEventName, ConsentState, TrackingConfig } from "../lib/ty
 
 interface AnalyticsWindow extends Window {
   dataLayer?: unknown[];
-  fbq?: (...args: unknown[]) => void;
+  gtag?: (...args: unknown[]) => void;
+  fbq?: ((...args: unknown[]) => void) & {
+    callMethod?: (...args: unknown[]) => void;
+    queue?: unknown[][];
+    push?: unknown;
+    loaded?: boolean;
+    version?: string;
+  };
   _fbq?: unknown;
   __cqAnalyticsInitialized?: boolean;
+  __cqMetaLoaded?: boolean;
+  __cqMetaPageViewSent?: boolean;
+  __cqGooglePrepared?: boolean;
 }
 
 interface TrackContext {
@@ -16,19 +26,9 @@ interface TrackContext {
   [key: string]: string | number | boolean | undefined;
 }
 
-function loadScript(provider: string, source: string): Promise<void> {
-  const existing = document.querySelector<HTMLScriptElement>(`script[data-provider="${provider}"]`);
-  if (existing) return Promise.resolve();
-  return new Promise((resolve, reject) => {
-    const script = document.createElement("script");
-    script.async = true;
-    script.src = source;
-    script.dataset.provider = provider;
-    script.addEventListener("load", () => resolve(), { once: true });
-    script.addEventListener("error", () => reject(new Error(`Unable to load ${provider}`)), { once: true });
-    document.head.append(script);
-  });
-}
+const validMeta = (value: string): boolean => /^\d{5,25}$/.test(String(value || "").trim());
+const validGA = (value: string): boolean => /^G-[A-Z0-9]+$/i.test(String(value || "").trim());
+const validAW = (value: string): boolean => /^AW-\d+$/i.test(String(value || "").trim());
 
 function metaEventName(eventName: AnalyticsEventName): string {
   const names: Partial<Record<AnalyticsEventName, string>> = {
@@ -41,6 +41,13 @@ function metaEventName(eventName: AnalyticsEventName): string {
     appointment_confirmed: "Schedule",
   };
   return names[eventName] ?? eventName;
+}
+
+function ensureDataLayer(): AnalyticsWindow {
+  const analyticsWindow = window as AnalyticsWindow;
+  analyticsWindow.dataLayer ??= [];
+  analyticsWindow.gtag ??= (...args: unknown[]) => { analyticsWindow.dataLayer?.push(args); };
+  return analyticsWindow;
 }
 
 export class AnalyticsService {
@@ -56,58 +63,83 @@ export class AnalyticsService {
     const analyticsWindow = window as AnalyticsWindow;
     if (analyticsWindow.__cqAnalyticsInitialized) return;
     analyticsWindow.__cqAnalyticsInitialized = true;
-    await this.#initializeProviders();
+    this.#initializeProviders();
   }
 
   async updateConsent(consent: ConsentState): Promise<void> {
     this.#consent = consent;
-    await this.#initializeProviders();
+    this.#initializeProviders();
   }
 
-  async #initializeProviders(): Promise<void> {
-    if (this.#consent.marketing && this.#tracking.meta_browser_enabled && this.#tracking.meta_pixel_id) {
-      await this.#initializeMeta();
+  #initializeProviders(): void {
+    if (this.#consent.marketing && this.#tracking.meta_browser_enabled && validMeta(this.#tracking.meta_pixel_id)) {
+      this.#initializeMetaExactlyLikeLyzandra();
     }
     if ((this.#consent.analytics || this.#consent.marketing) && this.#hasGoogleBrowserTracking()) {
-      await this.#initializeGoogle();
+      this.#initializeGoogleLikeLyzandra();
     }
   }
 
-  async #initializeMeta(): Promise<void> {
+  #initializeMetaExactlyLikeLyzandra(): void {
     const analyticsWindow = window as AnalyticsWindow;
+    if (analyticsWindow.__cqMetaLoaded) return;
+
     if (!analyticsWindow.fbq) {
-      const queue = (...args: unknown[]) => {
-        const queued = queue as typeof queue & { queue?: unknown[][]; callMethod?: (...values: unknown[]) => void };
-        if (queued.callMethod) queued.callMethod(...args);
-        else (queued.queue ??= []).push(args);
-      };
-      analyticsWindow.fbq = queue;
-      analyticsWindow._fbq = queue;
-      await loadScript("meta-pixel", "https://connect.facebook.net/en_US/fbevents.js");
-      analyticsWindow.fbq("init", this.#tracking.meta_pixel_id);
+      const fbq = function(this: unknown, ...args: unknown[]): void {
+        if (fbq.callMethod) fbq.callMethod(...args);
+        else (fbq.queue ??= []).push(args);
+      } as AnalyticsWindow["fbq"];
+
+      if (!analyticsWindow._fbq) analyticsWindow._fbq = fbq;
+      if (!fbq) return;
+      fbq.push = fbq;
+      fbq.loaded = true;
+      fbq.version = "2.0";
+      fbq.queue = [];
+      analyticsWindow.fbq = fbq;
+
+      const script = document.createElement("script");
+      script.async = true;
+      script.src = "https://connect.facebook.net/en_US/fbevents.js";
+      script.dataset.cqMetaPixel = "1";
+      const first = document.getElementsByTagName("script")[0];
+      if (first?.parentNode) first.parentNode.insertBefore(script, first);
+      else document.head.appendChild(script);
     }
+
+    analyticsWindow.fbq?.("init", this.#tracking.meta_pixel_id.trim());
+    analyticsWindow.fbq?.("track", "PageView");
+    analyticsWindow.__cqMetaLoaded = true;
+    analyticsWindow.__cqMetaPageViewSent = true;
   }
 
-  async #initializeGoogle(): Promise<void> {
-    const googleId = this.#tracking.ga4_measurement_id || this.#tracking.google_ads_conversion_id;
-    if (!googleId) return;
-    const analyticsWindow = window as AnalyticsWindow;
-    analyticsWindow.dataLayer ??= [];
-    const gtag = (...args: unknown[]) => analyticsWindow.dataLayer?.push(args);
-    await loadScript("google-tag", `https://www.googletagmanager.com/gtag/js?id=${encodeURIComponent(googleId)}`);
-    gtag("js", new Date());
-    if (this.#tracking.ga4_browser_enabled && this.#tracking.ga4_measurement_id) {
-      gtag("config", this.#tracking.ga4_measurement_id, { send_page_view: false });
-    }
-    if (this.#tracking.google_ads_browser_enabled && this.#tracking.google_ads_conversion_id) {
-      gtag("config", this.#tracking.google_ads_conversion_id);
-    }
+  #initializeGoogleLikeLyzandra(): void {
+    const analyticsWindow = ensureDataLayer();
+    if (analyticsWindow.__cqGooglePrepared) return;
+
+    const ids: string[] = [];
+    if (this.#tracking.ga4_browser_enabled && validGA(this.#tracking.ga4_measurement_id)) ids.push(this.#tracking.ga4_measurement_id.trim());
+    if (this.#tracking.google_ads_browser_enabled && validAW(this.#tracking.google_ads_conversion_id)) ids.push(this.#tracking.google_ads_conversion_id.trim());
+    if (!ids.length) return;
+
+    analyticsWindow.gtag?.("js", new Date());
+    ids.forEach((id) => {
+      if (id.startsWith("G-")) analyticsWindow.gtag?.("config", id, { send_page_view: false });
+      else analyticsWindow.gtag?.("config", id);
+    });
+
+    const script = document.createElement("script");
+    script.async = true;
+    script.src = `https://www.googletagmanager.com/gtag/js?id=${encodeURIComponent(ids[0])}`;
+    script.dataset.cqGoogleTag = "1";
+    document.head.appendChild(script);
+    analyticsWindow.__cqGooglePrepared = true;
   }
 
   #hasGoogleBrowserTracking(): boolean {
     return Boolean(
-      (this.#tracking.ga4_browser_enabled && this.#tracking.ga4_measurement_id)
-      || (this.#tracking.google_ads_browser_enabled && this.#tracking.google_ads_conversion_id),
+      (this.#tracking.ga4_browser_enabled && validGA(this.#tracking.ga4_measurement_id))
+      || (this.#tracking.google_ads_browser_enabled && validAW(this.#tracking.google_ads_conversion_id)),
     );
   }
 
@@ -116,22 +148,34 @@ export class AnalyticsService {
     const analyticsWindow = window as AnalyticsWindow;
 
     if (this.#consent.marketing && this.#tracking.meta_browser_enabled && analyticsWindow.fbq) {
-      analyticsWindow.fbq("track", metaEventName(eventName), context);
+      if (!(eventName === "page_view" && analyticsWindow.__cqMetaPageViewSent)) {
+        if (eventName === "click_whatsapp") {
+          analyticsWindow.fbq("track", "Contact", { content_name: "WhatsApp" });
+        } else {
+          analyticsWindow.fbq("track", metaEventName(eventName), context);
+        }
+      }
     }
 
-    if (this.#hasGoogleBrowserTracking() && analyticsWindow.dataLayer) {
-      analyticsWindow.dataLayer.push(["event", eventName, context]);
+    if (this.#hasGoogleBrowserTracking()) {
+      const current = ensureDataLayer();
+      if (eventName === "click_whatsapp") {
+        current.gtag?.("event", "generate_lead", { method: "whatsapp" });
+      } else {
+        current.gtag?.("event", eventName, context);
+      }
+
       if (
         this.#consent.marketing
         && this.#tracking.google_ads_browser_enabled
-        && this.#tracking.google_ads_conversion_id
+        && validAW(this.#tracking.google_ads_conversion_id)
         && this.#tracking.google_ads_conversion_label
         && ["submit_lead", "schedule_requested", "appointment_confirmed"].includes(eventName)
       ) {
-        analyticsWindow.dataLayer.push(["event", "conversion", {
-          send_to: `${this.#tracking.google_ads_conversion_id}/${this.#tracking.google_ads_conversion_label}`,
+        current.gtag?.("event", "conversion", {
+          send_to: `${this.#tracking.google_ads_conversion_id.trim()}/${this.#tracking.google_ads_conversion_label.trim()}`,
           ...context,
-        }]);
+        });
       }
     }
   }
