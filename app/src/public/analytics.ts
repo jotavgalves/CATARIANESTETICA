@@ -1,5 +1,3 @@
-import { runtimeConfig } from "../lib/config";
-import { supabase } from "../lib/supabase";
 import type { AnalyticsEventName, ConsentState, TrackingConfig } from "../lib/types";
 
 interface AnalyticsWindow extends Window {
@@ -16,22 +14,6 @@ interface TrackContext {
   value?: number;
   currency?: string;
   [key: string]: string | number | boolean | undefined;
-}
-
-const sessionKey = "cq-session-id";
-const visitorKey = "cq-visitor-id";
-
-function persistentId(key: string): string {
-  const existing = window.localStorage.getItem(key);
-  if (existing) return existing;
-  const value = crypto.randomUUID();
-  window.localStorage.setItem(key, value);
-  return value;
-}
-
-function cookie(name: string): string {
-  const match = document.cookie.split("; ").find((item) => item.startsWith(`${name}=`));
-  return match?.split("=").slice(1).join("=") ?? "";
 }
 
 function loadScript(provider: string, source: string): Promise<void> {
@@ -62,12 +44,10 @@ function metaEventName(eventName: AnalyticsEventName): string {
 }
 
 export class AnalyticsService {
-  readonly #siteIdentifier: string;
   readonly #tracking: TrackingConfig;
   #consent: ConsentState;
 
-  constructor(siteIdentifier: string, tracking: TrackingConfig, consent: ConsentState) {
-    this.#siteIdentifier = siteIdentifier;
+  constructor(_siteIdentifier: string, tracking: TrackingConfig, consent: ConsentState) {
     this.#tracking = tracking;
     this.#consent = consent;
   }
@@ -133,16 +113,14 @@ export class AnalyticsService {
 
   async track(eventName: AnalyticsEventName, context: TrackContext = {}): Promise<void> {
     if (!this.#consent.analytics && !this.#consent.marketing) return;
-    const eventId = crypto.randomUUID();
-    const timestamp = Date.now();
     const analyticsWindow = window as AnalyticsWindow;
 
     if (this.#consent.marketing && this.#tracking.meta_browser_enabled && analyticsWindow.fbq) {
-      analyticsWindow.fbq("track", metaEventName(eventName), context, { eventID: eventId });
+      analyticsWindow.fbq("track", metaEventName(eventName), context);
     }
 
     if (this.#hasGoogleBrowserTracking() && analyticsWindow.dataLayer) {
-      analyticsWindow.dataLayer.push(["event", eventName, { event_id: eventId, ...context }]);
+      analyticsWindow.dataLayer.push(["event", eventName, context]);
       if (
         this.#consent.marketing
         && this.#tracking.google_ads_browser_enabled
@@ -152,32 +130,9 @@ export class AnalyticsService {
       ) {
         analyticsWindow.dataLayer.push(["event", "conversion", {
           send_to: `${this.#tracking.google_ads_conversion_id}/${this.#tracking.google_ads_conversion_label}`,
-          event_id: eventId,
           ...context,
         }]);
       }
     }
-
-    const query = new URLSearchParams(window.location.search);
-    const payload = {
-      eventId,
-      eventName,
-      timestamp,
-      siteIdentifier: this.#siteIdentifier,
-      pageUrl: window.location.href,
-      pageTitle: document.title,
-      sessionId: persistentId(sessionKey),
-      visitorId: persistentId(visitorKey),
-      consent: this.#consent,
-      context,
-      fbp: cookie("_fbp"),
-      fbc: cookie("_fbc"),
-      gclid: query.get("gclid") ?? window.sessionStorage.getItem("cq-gclid") ?? "",
-    };
-
-    if (payload.gclid) window.sessionStorage.setItem("cq-gclid", payload.gclid);
-
-    const { error } = await supabase.functions.invoke(runtimeConfig.trackingFunction, { body: payload });
-    if (error) window.dispatchEvent(new CustomEvent("cq:tracking-error", { detail: error.message }));
   }
 }
