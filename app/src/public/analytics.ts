@@ -1,16 +1,18 @@
 import type { AnalyticsEventName, ConsentState, TrackingConfig } from "../lib/types";
 
+type MetaFbq = ((...args: unknown[]) => void) & {
+  callMethod?: (...args: unknown[]) => void;
+  queue: unknown[][];
+  push: MetaFbq;
+  loaded: boolean;
+  version: string;
+};
+
 interface AnalyticsWindow extends Window {
   dataLayer?: unknown[];
   gtag?: (...args: unknown[]) => void;
-  fbq?: ((...args: unknown[]) => void) & {
-    callMethod?: (...args: unknown[]) => void;
-    queue?: unknown[][];
-    push?: unknown;
-    loaded?: boolean;
-    version?: string;
-  };
-  _fbq?: unknown;
+  fbq?: MetaFbq;
+  _fbq?: MetaFbq;
   __cqAnalyticsInitialized?: boolean;
   __cqMetaLoaded?: boolean;
   __cqMetaPageViewSent?: boolean;
@@ -85,17 +87,17 @@ export class AnalyticsService {
     if (analyticsWindow.__cqMetaLoaded) return;
 
     if (!analyticsWindow.fbq) {
-      const fbq = function(this: unknown, ...args: unknown[]): void {
+      let fbq: MetaFbq;
+      const queue = (...args: unknown[]): void => {
         if (fbq.callMethod) fbq.callMethod(...args);
-        else (fbq.queue ??= []).push(args);
-      } as AnalyticsWindow["fbq"];
-
-      if (!analyticsWindow._fbq) analyticsWindow._fbq = fbq;
-      if (!fbq) return;
+        else fbq.queue.push(args);
+      };
+      fbq = queue as MetaFbq;
       fbq.push = fbq;
       fbq.loaded = true;
       fbq.version = "2.0";
       fbq.queue = [];
+      if (!analyticsWindow._fbq) analyticsWindow._fbq = fbq;
       analyticsWindow.fbq = fbq;
 
       const script = document.createElement("script");
@@ -107,8 +109,8 @@ export class AnalyticsService {
       else document.head.appendChild(script);
     }
 
-    analyticsWindow.fbq?.("init", this.#tracking.meta_pixel_id.trim());
-    analyticsWindow.fbq?.("track", "PageView");
+    analyticsWindow.fbq("init", this.#tracking.meta_pixel_id.trim());
+    analyticsWindow.fbq("track", "PageView");
     analyticsWindow.__cqMetaLoaded = true;
     analyticsWindow.__cqMetaPageViewSent = true;
   }
