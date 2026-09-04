@@ -61,16 +61,19 @@ export class AnalyticsService {
     this.#consent = consent;
   }
 
-  async initialize(): Promise<void> {
+  initialize(): Promise<void> {
     const analyticsWindow = window as AnalyticsWindow;
-    if (analyticsWindow.__cqAnalyticsInitialized) return;
-    analyticsWindow.__cqAnalyticsInitialized = true;
-    this.#initializeProviders();
+    if (!analyticsWindow.__cqAnalyticsInitialized) {
+      analyticsWindow.__cqAnalyticsInitialized = true;
+      this.#initializeProviders();
+    }
+    return Promise.resolve();
   }
 
-  async updateConsent(consent: ConsentState): Promise<void> {
+  updateConsent(consent: ConsentState): Promise<void> {
     this.#consent = consent;
     this.#initializeProviders();
+    return Promise.resolve();
   }
 
   #initializeProviders(): void {
@@ -87,12 +90,10 @@ export class AnalyticsService {
     if (analyticsWindow.__cqMetaLoaded) return;
 
     if (!analyticsWindow.fbq) {
-      let fbq: MetaFbq;
-      const queue = (...args: unknown[]): void => {
+      const fbq = ((...args: unknown[]): void => {
         if (fbq.callMethod) fbq.callMethod(...args);
         else fbq.queue.push(args);
-      };
-      fbq = queue as MetaFbq;
+      }) as MetaFbq;
       fbq.push = fbq;
       fbq.loaded = true;
       fbq.version = "2.0";
@@ -146,8 +147,8 @@ export class AnalyticsService {
     );
   }
 
-  async track(eventName: AnalyticsEventName, context: TrackContext = {}): Promise<void> {
-    if (!this.#consent.analytics && !this.#consent.marketing) return;
+  track(eventName: AnalyticsEventName, context: TrackContext = {}): Promise<void> {
+    if (!this.#consent.analytics && !this.#consent.marketing) return Promise.resolve();
     const analyticsWindow = window as AnalyticsWindow;
 
     if (this.#consent.marketing && this.#tracking.meta_browser_enabled && analyticsWindow.fbq) {
@@ -181,5 +182,6 @@ export class AnalyticsService {
         });
       }
     }
+    return Promise.resolve();
   }
 }
